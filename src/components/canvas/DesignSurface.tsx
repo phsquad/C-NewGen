@@ -8,6 +8,7 @@ import { FormWindowShell } from './FormWindowShell';
 import { ViewportTransform } from '../../utils/viewportTransform';
 import { calculateSmartSnapping } from '../../utils/smartSnapping';
 import { getDefaultEventForControl } from '../../utils/defaultEvents';
+import { useDesignerStore } from '../../store/designerStore';
 
 export const DesignSurface: React.FC = () => {
   const {
@@ -63,6 +64,8 @@ export const DesignSurface: React.FC = () => {
     duplicateSelectedNodes,
     deleteSelectedNodes,
     alignSelectedNodes,
+    undo,
+    redo,
     p2pSessionCode,
     p2pPeers,
     p2pInstance,
@@ -73,6 +76,8 @@ export const DesignSurface: React.FC = () => {
     y: number;
     nodeId: string;
   } | null>(null);
+
+  const [showHotkeysHelp, setShowHotkeysHelp] = useState(false);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const allForms = useMemo(() => {
@@ -174,9 +179,10 @@ export const DesignSurface: React.FC = () => {
     return () => cancelAnimationFrame(animId);
   }, [setFps]);
 
-  // Spacebar pan toggle
+  // Spacebar pan toggle + Keyboard Shortcuts Navigation & Operations
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // 1. Spacebar pan toggle
       if (e.code === 'Space' && !e.repeat) {
         const target = e.target as HTMLElement;
         if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
@@ -184,6 +190,8 @@ export const DesignSurface: React.FC = () => {
           setSpacePressed(true);
         }
       }
+
+      // 2. Navigation Mode toggle (V/H)
       if (e.code === 'KeyV' && !e.ctrlKey && !e.metaKey) {
         const target = e.target as HTMLElement;
         if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
@@ -194,6 +202,109 @@ export const DesignSurface: React.FC = () => {
         const target = e.target as HTMLElement;
         if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
           setIsPanMode(true);
+        }
+      }
+
+      // Check if typing in inputs/textareas to avoid stealing typing keys
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' || 
+        target.tagName === 'TEXTAREA' || 
+        target.isContentEditable ||
+        target.closest('[contenteditable="true"]')
+      ) {
+        return;
+      }
+
+      // 3. Delete Selected Controls (Del / Backspace)
+      if (e.code === 'Delete' || e.code === 'Backspace') {
+        const hasSelectedControls = project.selectedNodeIds.some(id => id !== activeFormId);
+        if (hasSelectedControls) {
+          e.preventDefault();
+          deleteSelectedNodes();
+        }
+      }
+
+      // 4. Duplicate (Ctrl+D / Cmd+D)
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyD') {
+        e.preventDefault();
+        duplicateSelectedNodes();
+      }
+
+      // 5. Undo (Ctrl+Z)
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+
+      // 6. Redo (Ctrl+Y or Ctrl+Shift+Z)
+      if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyY' || (e.shiftKey && e.code === 'KeyZ'))) {
+        e.preventDefault();
+        redo();
+      }
+
+      // 7. Select All controls in the active form (Ctrl+A)
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyA') {
+        if (activeFormId) {
+          e.preventDefault();
+          const activeFormChildren = Object.values(nodes)
+            .filter(n => n.parentId === activeFormId && n.type !== 'Form')
+            .map(n => n.id);
+          
+          if (activeFormChildren.length > 0) {
+            useDesignerStore.setState({ selectedNodeIds: activeFormChildren });
+          }
+        }
+      }
+
+      // 8. Arrow keys: Nudge and Resize Controls (Shift+Arrows)
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.code)) {
+        const selectedControls = project.selectedNodeIds.filter(id => {
+          const n = nodes[id];
+          return n && n.type !== 'Form';
+        });
+
+        if (selectedControls.length > 0) {
+          e.preventDefault();
+          // Step: 1px if Ctrl/Alt is pressed, else use snap gridStep (default: 8)
+          const step = (e.ctrlKey || e.altKey) ? 1 : (gridStep || 8);
+          const updates: Record<string, Partial<LayoutBounds>> = {};
+
+          selectedControls.forEach(id => {
+            const node = nodes[id];
+            if (!node) return;
+            const b = node.bounds;
+
+            if (e.shiftKey) {
+              // Shift + Arrows: Resize Width/Height
+              let dw = 0;
+              let dh = 0;
+              if (e.code === 'ArrowLeft') dw = -step;
+              if (e.code === 'ArrowRight') dw = step;
+              if (e.code === 'ArrowUp') dh = -step;
+              if (e.code === 'ArrowDown') dh = dh = step;
+
+              updates[id] = {
+                width: Math.max(8, b.width + dw),
+                height: Math.max(8, b.height + dh),
+              };
+            } else {
+              // Arrows: Move X/Y
+              let dx = 0;
+              let dy = 0;
+              if (e.code === 'ArrowLeft') dx = -step;
+              if (e.code === 'ArrowRight') dx = step;
+              if (e.code === 'ArrowUp') dy = -step;
+              if (e.code === 'ArrowDown') dy = step;
+
+              updates[id] = {
+                x: b.x + dx,
+                y: b.y + dy,
+              };
+            }
+          });
+
+          updateMultipleNodeBounds(updates, true);
         }
       }
     };
@@ -211,7 +322,7 @@ export const DesignSurface: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [spacePressed, isPanMode, setIsPanMode]);
+  }, [spacePressed, isPanMode, setIsPanMode, activeFormId, nodes, project.selectedNodeIds, gridStep, deleteSelectedNodes, duplicateSelectedNodes, undo, redo, updateMultipleNodeBounds]);
 
   // Cursor-Anchored Zoom (Pravka 2.2)
   const handleWheel = (e: React.WheelEvent) => {
@@ -972,7 +1083,7 @@ export const DesignSurface: React.FC = () => {
 
       {/* Selected Control Coordinate Annotation Callout */}
       {selectedNode && selectedNode.type !== 'Form' && (
-        <div className="absolute bottom-4 right-4 px-3 py-1.5 bg-zinc-900/90 backdrop-blur-md border border-zinc-800 rounded-md text-[11px] font-mono text-zinc-300 pointer-events-none shadow-lg flex items-center gap-2 z-40">
+        <div className="absolute bottom-4 right-4 px-3 py-1.5 bg-zinc-900/90 backdrop-blur-md border border-zinc-800 rounded-md text-[11px] font-mono text-zinc-300 pointer-events-none shadow-lg flex items-center gap-2 z-40 animate-fadeIn">
           <span className="text-blue-400 font-semibold">{selectedNode.properties.name}:</span>
           <span>
             X: <strong className="text-zinc-100">{Math.round(selectedNode.bounds.x)}px</strong>,
@@ -985,6 +1096,67 @@ export const DesignSurface: React.FC = () => {
           </span>
         </div>
       )}
+
+      {/* Keyboard Shortcuts Floating Legend Button & Overlay (SaaS Dashboard & Developer Experience Polish) */}
+      <div className="absolute bottom-4 left-4 z-40 flex flex-col items-start gap-2">
+        {showHotkeysHelp && (
+          <div className="bg-zinc-950/95 backdrop-blur-md border border-zinc-800 rounded-xl p-4 w-72 shadow-2xl text-zinc-300 space-y-2.5 animate-fadeIn font-sans border-b-2 border-b-purple-500">
+            <div className="flex items-center justify-between border-b border-zinc-900 pb-2">
+              <span className="font-bold text-xs text-zinc-100 flex items-center gap-1.5 font-mono text-purple-400">
+                ⌨️ ГОРЯЧИЕ КЛАВИШИ
+              </span>
+              <button
+                onClick={() => setShowHotkeysHelp(false)}
+                className="text-[10px] text-zinc-500 hover:text-zinc-300 px-1.5 py-0.5 hover:bg-zinc-900 rounded border border-zinc-800/60 cursor-pointer"
+              >
+                Скрыть
+              </button>
+            </div>
+            
+            <div className="space-y-1.5 text-[11px]">
+              <div className="flex justify-between items-center py-0.5">
+                <span className="text-zinc-400">Смещение по сетке ({gridStep}px)</span>
+                <kbd className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-[9px] font-mono text-zinc-200">⇅⇄ Стрелки</kbd>
+              </div>
+              <div className="flex justify-between items-center py-0.5">
+                <span className="text-zinc-400">Точное смещение (1px)</span>
+                <kbd className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-[9px] font-mono text-zinc-200">Ctrl/Alt + ⇅⇄</kbd>
+              </div>
+              <div className="flex justify-between items-center py-0.5">
+                <span className="text-zinc-400">Изменить размер</span>
+                <kbd className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-[9px] font-mono text-zinc-200">Shift + ⇅⇄</kbd>
+              </div>
+              <div className="flex justify-between items-center py-0.5">
+                <span className="text-zinc-400">Дублировать</span>
+                <kbd className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-[9px] font-mono text-zinc-200">Ctrl + D</kbd>
+              </div>
+              <div className="flex justify-between items-center py-0.5">
+                <span className="text-zinc-400">Отмена / Повтор</span>
+                <kbd className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-[9px] font-mono text-zinc-200">Ctrl + Z / Y</kbd>
+              </div>
+              <div className="flex justify-between items-center py-0.5">
+                <span className="text-zinc-400">Выделить всё в форме</span>
+                <kbd className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-[9px] font-mono text-zinc-200">Ctrl + A</kbd>
+              </div>
+              <div className="flex justify-between items-center py-0.5">
+                <span className="text-zinc-400">Панорамирование холста</span>
+                <kbd className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-[9px] font-mono text-zinc-200">Пробел + Драг</kbd>
+              </div>
+              <div className="flex justify-between items-center py-0.5">
+                <span className="text-zinc-400">Удалить выбранное</span>
+                <kbd className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-[9px] font-mono text-zinc-200">Del / Backspace</kbd>
+              </div>
+            </div>
+          </div>
+        )}
+        <button
+          onClick={() => setShowHotkeysHelp(!showHotkeysHelp)}
+          className="px-3 py-1.5 bg-zinc-900/90 hover:bg-zinc-800/90 backdrop-blur-md border border-zinc-800 rounded-md text-[11px] font-medium text-zinc-400 hover:text-zinc-200 pointer-events-auto shadow-lg flex items-center gap-1.5 transition cursor-pointer"
+        >
+          <span>⌨️</span>
+          <span>Горячие клавиши</span>
+        </button>
+      </div>
 
       {/* Floating RMB Context Menu (Правка 16.2) */}
       {contextMenu && (

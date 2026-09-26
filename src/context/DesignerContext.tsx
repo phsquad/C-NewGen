@@ -168,6 +168,13 @@ export const DesignerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
     // Set initial list
     setP2pPeers(Array.from(instance.peers.values()));
+
+    // Automatically push room to URL query parameters
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('room', finalCode);
+      window.history.replaceState(null, '', url.toString());
+    } catch (e) {}
   };
 
   const stopP2PSession = () => {
@@ -178,6 +185,13 @@ export const DesignerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setP2pInstance(null);
     setP2pSessionCode(null);
     setP2pPeers([]);
+
+    // Automatically remove room from URL query parameters
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('room');
+      window.history.replaceState(null, '', url.toString());
+    } catch (e) {}
   };
 
   // Bi-directional multiplayer synchronization effect
@@ -271,8 +285,20 @@ export const DesignerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, [p2pInstance]);
 
-  // By default, start in Solo (offline) mode
+  // By default, start in Solo (offline) mode, but auto-join if room is in URL
   useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const room = params.get('room');
+      if (room) {
+        // Delay slightly to let components mount completely
+        const t = setTimeout(() => {
+          startP2PSession(room);
+        }, 300);
+        return () => clearTimeout(t);
+      }
+    } catch (e) {}
+
     return () => {
       // Direct access to ref inside cleanup ensures strict React 18/19 compatibility
       if (p2pRef.current) {

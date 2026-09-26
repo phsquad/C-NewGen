@@ -84,7 +84,7 @@ export const DevOSDesktop: React.FC<DevOSDesktopProps> = ({ onExitDevOS }) => {
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
 
   // Modals inside OS
-  const [genesisModalOpen, setGenesisModalOpen] = useState(false);
+  const [genesisModalOpen, setGenesisModalOpen] = useState(true);
   const [synthesizerModalOpen, setSynthesizerModalOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [storageModalOpen, setStorageModalOpen] = useState(false);

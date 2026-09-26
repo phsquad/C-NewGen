@@ -109,7 +109,7 @@ export const TopHeaderBar: React.FC = () => {
   const [projectManagerOpen, setProjectManagerOpen] = useState(false);
   const [synthesizerModalOpen, setSynthesizerModalOpen] = useState(false);
   const [auditModalOpen, setAuditModalOpen] = useState(false);
-  const [genesisModalOpen, setGenesisModalOpen] = useState(false);
+  const [genesisModalOpen, setGenesisModalOpen] = useState(true);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [storageModalOpen, setStorageModalOpen] = useState(false);
   const [beautifyNotice, setBeautifyNotice] = useState(false);

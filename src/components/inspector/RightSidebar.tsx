@@ -38,6 +38,8 @@ import {
   Layers,
   FileCode,
   Link2,
+  History,
+  Clock,
 } from 'lucide-react';
 
 export const RightSidebar: React.FC = () => {
@@ -56,6 +58,15 @@ export const RightSidebar: React.FC = () => {
     activeRightTab,
     setActiveRightTab,
     setCodeDockOpen,
+    historyJournal,
+    redoJournal,
+    jumpToHistoryStep,
+    createCheckpoint,
+    getHistoryMemorySizeKb,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useDesigner();
 
   // Search and Sort Mode
@@ -86,6 +97,7 @@ export const RightSidebar: React.FC = () => {
   });
 
   const [customItemText, setCustomItemText] = useState('');
+  const [checkpointLabel, setCheckpointLabel] = useState('');
   const [eventSearchQuery, setEventSearchQuery] = useState('');
   const [activeEventSnippetName, setActiveEventSnippetName] = useState<string | null>(null);
   const [collapsedEventCategories, setCollapsedEventCategories] = useState<Record<string, boolean>>({
@@ -454,12 +466,12 @@ export const RightSidebar: React.FC = () => {
         )}
       </div>
 
-      {/* 2. Top Tabs: [ ⚙️ Свойства ] vs [ ⚡️ События ] */}
-      <div className="flex items-center border-b border-zinc-800 bg-zinc-950/60 p-1">
+      {/* 2. Top Tabs: [ ⚙️ Свойства ] vs [ ⚡️ События ] vs [ 🕒 История ] */}
+      <div className="flex items-center border-b border-zinc-800 bg-zinc-950/60 p-1 gap-0.5">
         <button
           type="button"
           onClick={() => setActiveRightTab('properties')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded transition-all cursor-pointer ${
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-medium rounded transition-all cursor-pointer ${
             activeRightTab === 'properties'
               ? 'bg-zinc-800 text-zinc-100 shadow-xs border border-zinc-700/60 font-semibold'
               : 'text-zinc-400 hover:text-zinc-200'
@@ -472,7 +484,7 @@ export const RightSidebar: React.FC = () => {
           type="button"
           disabled={isMultiSelect}
           onClick={() => !isMultiSelect && setActiveRightTab('events')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded transition-all cursor-pointer ${
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-medium rounded transition-all cursor-pointer ${
             isMultiSelect
               ? 'opacity-40 cursor-not-allowed text-zinc-600'
               : activeRightTab === 'events'
@@ -483,6 +495,19 @@ export const RightSidebar: React.FC = () => {
         >
           <Zap className="w-3.5 h-3.5 text-amber-400" />
           <span>События</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveRightTab('history')}
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-medium rounded transition-all cursor-pointer ${
+            activeRightTab === 'history'
+              ? 'bg-zinc-800 text-zinc-100 shadow-xs border border-zinc-700/60 font-semibold'
+              : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+          title="История изменений и таймлайн операций"
+        >
+          <History className="w-3.5 h-3.5 text-purple-400" />
+          <span>История</span>
         </button>
       </div>
 
@@ -1636,6 +1661,206 @@ export const RightSidebar: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* 6. History Timeline Tab Content */}
+      {activeRightTab === 'history' && (
+        <div className="flex-1 flex flex-col overflow-hidden text-xs">
+          {/* Quick Memory & Info Banner */}
+          <div className="p-3 bg-zinc-950/60 border-b border-zinc-800 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-zinc-400">
+              <Clock className="w-4 h-4 text-purple-400" />
+              <span>Размер истории:</span>
+              <strong className="text-zinc-200 font-semibold">{getHistoryMemorySizeKb()} KB</strong>
+            </div>
+            <div className="text-[10px] bg-purple-900/20 text-purple-300 px-2 py-0.5 rounded border border-purple-800/40">
+              Шагов: {historyJournal.length + redoJournal.length}
+            </div>
+          </div>
+
+          {/* Manual Save Point / Checkpoint Creator */}
+          <div className="p-3 border-b border-zinc-800/80 bg-zinc-900/40 space-y-2">
+            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block font-mono">
+              🏁 Создать контрольную точку
+            </span>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Имя точки (например: До редизайна)"
+                value={checkpointLabel}
+                onChange={(e) => setCheckpointLabel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && checkpointLabel.trim()) {
+                    createCheckpoint(checkpointLabel);
+                    setCheckpointLabel('');
+                  }
+                }}
+                className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-purple-500"
+              />
+              <button
+                onClick={() => {
+                  if (checkpointLabel.trim()) {
+                    createCheckpoint(checkpointLabel);
+                    setCheckpointLabel('');
+                  }
+                }}
+                disabled={!checkpointLabel.trim()}
+                className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded text-xs font-semibold cursor-pointer transition-colors"
+              >
+                Создать
+              </button>
+            </div>
+          </div>
+
+          {/* Core Timeline List */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block font-mono">
+              ⏳ Хронология операций
+            </span>
+
+            <div className="relative border-l border-zinc-800 pl-4 ml-2.5 space-y-3 py-1">
+              {/* Initial Session State */}
+              <div 
+                onClick={() => jumpToHistoryStep(0)}
+                className={`group relative flex items-center justify-between p-2 rounded border transition-all cursor-pointer ${
+                  historyJournal.length === 0
+                    ? 'bg-purple-950/20 border-purple-500/50 shadow-md shadow-purple-500/5 text-purple-200'
+                    : 'bg-zinc-900/30 border-zinc-800/60 hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                {/* Visual marker dot */}
+                <div className={`absolute -left-[21px] w-2.5 h-2.5 rounded-full border ${
+                  historyJournal.length === 0
+                    ? 'bg-purple-400 border-purple-400 animate-pulse scale-110 shadow-lg'
+                    : 'bg-zinc-950 border-zinc-700 group-hover:border-zinc-500'
+                }`} />
+
+                <div className="flex flex-col min-w-0 pr-1">
+                  <span className={`text-[11px] font-bold ${historyJournal.length === 0 ? 'text-purple-300' : 'text-zinc-400'}`}>
+                    🚀 НАЧАЛО СЕССИИ
+                  </span>
+                  <span className="text-[9px] text-zinc-500 mt-0.5">Исходное состояние проекта</span>
+                </div>
+                <span className="text-[9px] text-zinc-500 font-mono">00:00</span>
+              </div>
+
+              {/* History Commands (Past / Undoable) */}
+              {historyJournal.map((cmd, idx) => {
+                const isActive = idx === historyJournal.length - 1;
+                const catEmoji = getCategoryEmoji(cmd.category);
+
+                return (
+                  <div
+                    key={cmd.id}
+                    onClick={() => jumpToHistoryStep(idx + 1)}
+                    className={`group relative flex items-center justify-between p-2 rounded border transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-purple-950/20 border-purple-500/50 shadow-md shadow-purple-500/5 text-purple-200'
+                        : 'bg-zinc-900/50 border-zinc-800/80 hover:bg-zinc-900 text-zinc-300 hover:text-zinc-100'
+                    }`}
+                  >
+                    {/* Visual marker dot */}
+                    <div className={`absolute -left-[21px] w-2.5 h-2.5 rounded-full border ${
+                      isActive
+                        ? 'bg-purple-400 border-purple-400 scale-110 shadow-lg shadow-purple-400/50'
+                        : 'bg-zinc-950 border-zinc-700 group-hover:border-zinc-500'
+                    }`} />
+
+                    <div className="flex flex-col min-w-0 pr-2">
+                      <span className="text-[11px] font-semibold flex items-center gap-1">
+                        <span>{catEmoji}</span>
+                        <span className="truncate">{cmd.description}</span>
+                      </span>
+                      <span className="text-[9px] text-zinc-500 mt-0.5 flex items-center gap-1.5 uppercase font-mono">
+                        <span className="text-zinc-600">{cmd.category}</span>
+                        {cmd.isCheckpoint && (
+                          <span className="bg-amber-500/10 text-amber-400 text-[8px] px-1.5 py-0.2 rounded border border-amber-500/20 font-sans">
+                            Точка
+                          </span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="text-right shrink-0 flex flex-col items-end">
+                      <span className="text-[9px] text-zinc-500 font-mono">{cmd.timeStr || '12:00:00'}</span>
+                      <span className="text-[8px] text-purple-400 font-mono mt-0.5">#{idx + 1}</span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Redo Commands (Future / Redoable) */}
+              {redoJournal.map((cmd, idx) => {
+                const catEmoji = getCategoryEmoji(cmd.category);
+                const targetStep = historyJournal.length + idx + 1;
+
+                return (
+                  <div
+                    key={cmd.id}
+                    onClick={() => jumpToHistoryStep(targetStep)}
+                    className="group relative flex items-center justify-between p-2 rounded border bg-zinc-900/10 border-zinc-800/40 hover:bg-zinc-900/30 text-zinc-500 hover:text-zinc-300 transition-all cursor-pointer opacity-50 hover:opacity-80 border-dashed"
+                  >
+                    {/* Visual marker dot */}
+                    <div className="absolute -left-[21px] w-2.5 h-2.5 rounded-full border bg-zinc-950 border-zinc-800 group-hover:border-zinc-600" />
+
+                    <div className="flex flex-col min-w-0 pr-2">
+                      <span className="text-[11px] font-medium flex items-center gap-1 italic">
+                        <span>{catEmoji}</span>
+                        <span className="truncate">{cmd.description}</span>
+                      </span>
+                      <span className="text-[9px] text-zinc-600 mt-0.5 uppercase font-mono">
+                        {cmd.category} (Отменено)
+                      </span>
+                    </div>
+
+                    <div className="text-right shrink-0 flex flex-col items-end">
+                      <span className="text-[9px] text-zinc-600 font-mono">{cmd.timeStr}</span>
+                      <span className="text-[8px] text-zinc-600 font-mono mt-0.5">+{idx + 1}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Quick Undo/Redo Action footer */}
+          <div className="p-3 bg-zinc-950/80 border-t border-zinc-800 flex items-center gap-2">
+            <button
+              onClick={undo}
+              disabled={!canUndo}
+              className="flex-1 py-1.5 px-2 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 disabled:hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 rounded font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <span>↩</span>
+              <span>Шаг назад</span>
+            </button>
+            <button
+              onClick={redo}
+              disabled={!canRedo}
+              className="flex-1 py-1.5 px-2 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 disabled:hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 rounded font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <span>Шаг вперед</span>
+              <span>↪</span>
+            </button>
+          </div>
+        </div>
+      )}
     </aside>
   );
 };
+
+function getCategoryEmoji(category: string): string {
+  switch (category) {
+    case 'create': return '➕';
+    case 'delete': return '🗑️';
+    case 'move': return '📦';
+    case 'resize': return '↔️';
+    case 'property': return '⚙️';
+    case 'event': return '⚡';
+    case 'theme': return '🎨';
+    case 'align': return '📐';
+    case 'template': return '🧩';
+    case 'checkpoint': return '🏁';
+    case 'order': return '🔀';
+    case 'duplicate': return '👥';
+    default: return '📝';
+  }
+}

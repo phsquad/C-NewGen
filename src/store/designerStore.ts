@@ -102,7 +102,7 @@ export interface DesignerStoreState {
 
   // Panels & Modals State
   activeLeftTab: 'toolbox' | 'tree';
-  activeRightTab: 'properties' | 'events' | 'code';
+  activeRightTab: 'properties' | 'events' | 'code' | 'history';
   codeDockOpen: boolean;
   liveRunOpen: boolean;
   importModalOpen: boolean;
@@ -159,7 +159,7 @@ export interface DesignerStoreState {
   setCursorPos: (pos: { screenX: number; screenY: number; formX: number | null; formY: number | null }) => void;
   setFps: (fps: number) => void;
   setActiveLeftTab: (tab: 'toolbox' | 'tree') => void;
-  setActiveRightTab: (tab: 'properties' | 'events' | 'code') => void;
+  setActiveRightTab: (tab: 'properties' | 'events' | 'code' | 'history') => void;
   setCodeDockOpen: (open: boolean) => void;
   setLiveRunOpen: (open: boolean) => void;
   setImportModalOpen: (open: boolean) => void;

@@ -99,11 +99,6 @@ export const TopHeaderBar: React.FC = () => {
     updateMultipleNodeBounds,
     activeFormId,
     gridStep,
-    p2pSessionCode,
-    p2pPeers,
-    startP2PSession,
-    stopP2PSession,
-    p2pInstance,
   } = useDesigner();
 
   // Dropdown menus states
@@ -120,18 +115,6 @@ export const TopHeaderBar: React.FC = () => {
   const [beautifyNotice, setBeautifyNotice] = useState(false);
   const [projectsCount, setProjectsCount] = useState(2);
   const [diskSyncSuccess, setDiskSyncSuccess] = useState(false);
-
-  // Multiplayer strategies & networking modal states
-  const [networkModalOpen, setNetworkModalOpen] = useState(false);
-  const [tempRoomName, setTempRoomName] = useState(p2pSessionCode || '');
-  const [copiedLink, setCopiedLink] = useState(false);
-
-  // Sync tempRoomName when session code changes
-  useEffect(() => {
-    if (p2pSessionCode) {
-      setTempRoomName(p2pSessionCode);
-    }
-  }, [p2pSessionCode]);
 
   const [pwaPrompt, setPwaPrompt] = useState<any>(null);
   const [isPwaInstalled, setIsPwaInstalled] = useState(false);
@@ -434,46 +417,17 @@ export const TopHeaderBar: React.FC = () => {
         </div>
       </div>
 
-      {/* P2P Multiplayer Header Widget (Honest Co-op Mode) */}
-      {!p2pSessionCode ? (
-        <button
-          type="button"
-          onClick={() => {
-            const code = prompt('Введите имя комнаты (например: LAB1):');
-            if (code) {
-              startP2PSession(code.toUpperCase().trim());
-            }
-          }}
-          className="px-2.5 py-1 text-[11px] bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 rounded-xl flex items-center gap-1.5 transition cursor-pointer font-medium hover:scale-102"
-        >
-          <span>👤</span>
-          <span>Соло (Оффлайн)</span>
-        </button>
-      ) : (
-        <div className="flex items-center gap-2 bg-blue-950/40 border border-blue-800/60 px-2.5 py-1 rounded-xl text-[11px] font-medium animate-fadeIn">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-          <span className="text-blue-200 font-bold">Комната: {p2pSessionCode}</span>
-          <button
-            type="button"
-            onClick={() => {
-              const link = `${window.location.origin}${window.location.pathname}?room=${p2pSessionCode}`;
-              navigator.clipboard.writeText(link);
-              alert('Ссылка на комнату скопирована в буфер обмена!');
-            }}
-            className="px-1.5 py-0.5 bg-blue-900/40 hover:bg-blue-800/60 text-[9px] text-blue-300 rounded border border-blue-700/40 transition cursor-pointer font-semibold"
-          >
-            Поделиться
-          </button>
-          <button
-            type="button"
-            onClick={stopP2PSession}
-            className="ml-1 text-rose-400 hover:text-rose-300 font-bold cursor-pointer text-xs leading-none"
-            title="Выйти из комнаты"
-          >
-            ✕
-          </button>
-        </div>
-      )}
+      {/* Multiplayer Placeholder (Feature in Development) */}
+      <button
+        type="button"
+        onClick={() => {
+          alert('🤝 Совместная работа в реальном времени находится на стадии закрытого тестирования и скоро будет доступна в следующем обновлении!');
+        }}
+        className="px-2.5 py-1 text-[11px] bg-zinc-950/40 hover:bg-zinc-900/40 text-zinc-500 hover:text-zinc-400 border border-zinc-900 rounded-xl flex items-center gap-1.5 transition cursor-pointer font-medium hover:scale-102"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500/80 animate-pulse" />
+        <span>Совместная работа (В разработке)</span>
+      </button>
 
       {/* ЦЕНТР: Переключатель режимов */}
       <div className="flex items-center gap-3">

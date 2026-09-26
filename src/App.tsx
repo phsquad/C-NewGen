@@ -56,8 +56,6 @@ const DesignerApp: React.FC = () => {
     liveRunOpen,
     importModalOpen,
     setImportModalOpen,
-    p2pSessionCode,
-    startP2PSession,
   } = useDesigner();
 
   const [shareToast, setShareToast] = useState<string | null>(null);
@@ -65,27 +63,7 @@ const DesignerApp: React.FC = () => {
   // Studio Overlay Panel Mode ('database' | 'git' | 'terminal' | 'uml' | 'settings' | null)
   const [activeOverlay, setActiveOverlay] = useState<'database' | 'git' | 'terminal' | 'uml' | 'settings' | null>(null);
 
-  // Dynamically update URL and browser history whenever p2pSessionCode changes
-  useEffect(() => {
-    try {
-      const url = new URL(window.location.href);
-
-      if (p2pSessionCode) {
-        url.searchParams.set('room', p2pSessionCode);
-      } else {
-        url.searchParams.delete('room');
-      }
-
-      // Preserve the hash (for project file load) and replace state
-      const newUrl = `${url.origin}${url.pathname}${url.search}${window.location.hash}`;
-      
-      window.history.replaceState(null, '', newUrl);
-    } catch (e) {
-      console.error('Failed to update URL with room state:', e);
-    }
-  }, [p2pSessionCode]);
-
-  // Auto-load project state from URL hash or auto-join collaborative room on mount
+  // Auto-load project state from URL hash on mount
   useEffect(() => {
     const sharedProject = decodeProjectFromHashUrl();
     if (sharedProject) {
@@ -93,17 +71,7 @@ const DesignerApp: React.FC = () => {
       setShareToast(`🎉 Проект "${sharedProject.projectName || 'Shared App'}" загружен по ссылке!`);
       setTimeout(() => setShareToast(null), 5000);
     }
-
-    const roomId = getRoomIdFromUrl();
-    if (roomId) {
-      const timer = setTimeout(() => {
-        startP2PSession(roomId);
-        setShareToast(`🤝 Подключение к комнате совместной работы: "${roomId}"...`);
-        setTimeout(() => setShareToast(null), 4000);
-      }, 400);
-      return () => clearTimeout(timer);
-    }
-  }, [setProjectState, startP2PSession]);
+  }, [setProjectState]);
 
   // Dynamic Document Title Sync (Правка 16.1)
   useEffect(() => {

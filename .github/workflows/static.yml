@@ -31,7 +31,7 @@ jobs:
           node-version: 20
 
       - name: Install Dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Build Optimized Bundle
         run: npm run build

@@ -28,6 +28,7 @@ function githubPagesSpaPlugin(): Plugin {
 
 export default defineConfig(() => {
   return {
+    base: './',
     plugins: [react(), tailwindcss(), githubPagesSpaPlugin()],
     resolve: {
       alias: {

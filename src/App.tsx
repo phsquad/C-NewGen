@@ -16,7 +16,7 @@ import { ImportModal } from './components/modals/ImportModal';
 import { MessageBoxModal } from './components/modals/MessageBoxModal';
 import { MultiTabSyncBanner } from './components/notifications/MultiTabSyncBanner';
 import { registerServiceWorker } from './utils/serviceWorkerRegistration';
-import { decodeProjectFromHashUrl } from './utils/urlHashSharing';
+import { decodeProjectFromHashUrl, getRoomIdFromUrl } from './utils/urlHashSharing';
 import { DevOSDesktop } from './components/devos/DevOSDesktop';
 import { StorageManagerModal } from './components/modals/StorageManagerModal';
 import {
@@ -56,6 +56,8 @@ const DesignerApp: React.FC = () => {
     liveRunOpen,
     importModalOpen,
     setImportModalOpen,
+    p2pSessionCode,
+    startP2PSession,
   } = useDesigner();
 
   const [shareToast, setShareToast] = useState<string | null>(null);
@@ -63,7 +65,31 @@ const DesignerApp: React.FC = () => {
   // Studio Overlay Panel Mode ('database' | 'git' | 'terminal' | 'uml' | 'settings' | null)
   const [activeOverlay, setActiveOverlay] = useState<'database' | 'git' | 'terminal' | 'uml' | 'settings' | null>(null);
 
-  // Instant Share Hash Auto-Load (Stage 17)
+  // Dynamically update URL hash and browser history whenever p2pSessionCode changes
+  useEffect(() => {
+    try {
+      const hash = window.location.hash.replace(/^#/, '');
+      const hashParams = new URLSearchParams(hash);
+      const url = new URL(window.location.href);
+
+      if (p2pSessionCode) {
+        hashParams.set('room', p2pSessionCode);
+        url.searchParams.set('room', p2pSessionCode);
+      } else {
+        hashParams.delete('room');
+        url.searchParams.delete('room');
+      }
+
+      const newHash = hashParams.toString();
+      const newUrl = `${url.origin}${url.pathname}${url.search ? url.search : ''}${newHash ? '#' + newHash : ''}`;
+      
+      window.history.replaceState(null, '', newUrl);
+    } catch (e) {
+      console.error('Failed to update URL with room state:', e);
+    }
+  }, [p2pSessionCode]);
+
+  // Auto-load project state from URL hash or auto-join collaborative room on mount
   useEffect(() => {
     const sharedProject = decodeProjectFromHashUrl();
     if (sharedProject) {
@@ -71,7 +97,17 @@ const DesignerApp: React.FC = () => {
       setShareToast(`🎉 Проект "${sharedProject.projectName || 'Shared App'}" загружен по ссылке!`);
       setTimeout(() => setShareToast(null), 5000);
     }
-  }, [setProjectState]);
+
+    const roomId = getRoomIdFromUrl();
+    if (roomId) {
+      const timer = setTimeout(() => {
+        startP2PSession(roomId);
+        setShareToast(`🤝 Подключение к комнате совместной работы: "${roomId}"...`);
+        setTimeout(() => setShareToast(null), 4000);
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [setProjectState, startP2PSession]);
 
   // Dynamic Document Title Sync (Правка 16.1)
   useEffect(() => {

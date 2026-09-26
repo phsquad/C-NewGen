@@ -1,0 +1,6 @@
+{
+  "name": "NextGen C# Designer",
+  "description": "Visual Studio + Figma style C# Form Designer with interactive 60 FPS viewport, UI-AST model, live .NET 8/9 code generation, and inspector.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

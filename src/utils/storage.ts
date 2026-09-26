@@ -8,6 +8,64 @@ import {
 } from './codeGenerators';
 
 const STORAGE_KEY = 'nextgen_csharp_designer_project_v1';
+const PROJECTS_LIST_KEY = 'nextgen_csharp_saved_projects_v1';
+
+export interface LocalStorageSavedProject {
+  id: string;
+  name: string;
+  updatedAt: number;
+  createdAt: number;
+  state: DesignerProjectState;
+}
+
+export const saveProjectToLocalStorageList = (project: DesignerProjectState): void => {
+  try {
+    const raw = localStorage.getItem(PROJECTS_LIST_KEY);
+    const list: LocalStorageSavedProject[] = raw ? JSON.parse(raw) : [];
+    const now = Date.now();
+    const existingIndex = list.findIndex(p => p.name === project.projectName);
+
+    if (existingIndex > -1) {
+      list[existingIndex].updatedAt = now;
+      list[existingIndex].state = project;
+    } else {
+      list.push({
+        id: `local_proj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: project.projectName || 'Новый Проект',
+        createdAt: now,
+        updatedAt: now,
+        state: project,
+      });
+    }
+
+    localStorage.setItem(PROJECTS_LIST_KEY, JSON.stringify(list));
+  } catch (err) {
+    console.error('Failed to save project to localStorage list', err);
+  }
+};
+
+export const loadProjectsFromLocalStorageList = (): LocalStorageSavedProject[] => {
+  try {
+    const raw = localStorage.getItem(PROJECTS_LIST_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error('Failed to load projects from localStorage list', err);
+    return [];
+  }
+};
+
+export const deleteProjectFromLocalStorageList = (id: string): void => {
+  try {
+    const raw = localStorage.getItem(PROJECTS_LIST_KEY);
+    if (!raw) return;
+    const list: LocalStorageSavedProject[] = JSON.parse(raw);
+    const updated = list.filter(p => p.id !== id);
+    localStorage.setItem(PROJECTS_LIST_KEY, JSON.stringify(updated));
+  } catch (err) {
+    console.error('Failed to delete project from localStorage list', err);
+  }
+};
 
 export const saveProjectToLocalStorage = (project: DesignerProjectState): number => {
   try {

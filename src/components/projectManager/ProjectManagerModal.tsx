@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useDesigner } from '../../context/DesignerContext';
 import { db, SavedProject, initDefaultProjectsIfEmpty, formatRelativeTime, getIndexedDbStorageSizeKb } from '../../utils/indexedDbStorage';
 import { createMultiFormTemplate, createLoginTemplate } from '../../utils/templates';
-import { exportProjectAsZip, downloadFile } from '../../utils/storage';
+import { exportProjectAsZip, downloadFile, LocalStorageSavedProject, loadProjectsFromLocalStorageList, saveProjectToLocalStorageList, deleteProjectFromLocalStorageList } from '../../utils/storage';
 import { migrateProjectSchema } from '../../utils/schemaMigrator';
 import {
   isFileSystemAccessSupported,
@@ -49,6 +49,8 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ isOpen
   } = useDesigner();
 
   const [projectsList, setProjectsList] = useState<SavedProject[]>([]);
+  const [localStorageProjects, setLocalStorageProjects] = useState<LocalStorageSavedProject[]>([]);
+  const [activeStorageTab, setActiveStorageTab] = useState<'indexeddb' | 'localstorage'>('localstorage');
   const [searchQuery, setSearchQuery] = useState('');
   const [totalDbSizeKb, setTotalDbSizeKb] = useState<number>(46);
   const [isLoading, setIsLoading] = useState(false);
@@ -74,6 +76,11 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ isOpen
       await initDefaultProjectsIfEmpty();
       const list = await db.projects.orderBy('updatedAt').reverse().toArray();
       setProjectsList(list);
+
+      // Load LocalStorage projects list
+      const localList = loadProjectsFromLocalStorageList();
+      setLocalStorageProjects(localList);
+
       const size = await getIndexedDbStorageSizeKb();
       setTotalDbSizeKb(size);
     } catch (err) {
@@ -89,43 +96,52 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ isOpen
     }
   }, [isOpen]);
 
-  // Current project synchronization to IndexedDB on save
+  // Save current project to selected storage (IndexedDB or LocalStorage)
   const handleSaveCurrentToDb = async () => {
     try {
-      const existing = await db.projects.get(project.projectName);
       const now = Date.now();
-      const projId = existing?.id || `proj_${Date.now()}`;
+      if (activeStorageTab === 'localstorage') {
+        saveProjectToLocalStorageList(project);
+        showNotification(`Проект «${project.projectName}» сохранен в LocalStorage пользователя`);
+      } else {
+        const existing = await db.projects.get(project.projectName);
+        const projId = existing?.id || `proj_${Date.now()}`;
 
-      await db.projects.put({
-        id: projId,
-        name: project.projectName || 'WinFormsApp1',
-        createdAt: existing?.createdAt || now,
-        updatedAt: now,
-        state: project,
-      });
-
-      showNotification(`Проект «${project.projectName}» сохранен в базу IndexedDB`);
+        await db.projects.put({
+          id: projId,
+          name: project.projectName || 'WinFormsApp1',
+          createdAt: existing?.createdAt || now,
+          updatedAt: now,
+          state: project,
+        });
+        showNotification(`Проект «${project.projectName}» сохранен в базу IndexedDB`);
+      }
       await refreshProjects();
     } catch (err) {
-      showNotification('Ошибка сохранения в базу IndexedDB', 'error');
+      showNotification('Ошибка сохранения в хранилище', 'error');
     }
   };
 
   // 1. Create New Project
   const handleCreateNewProject = async (template: 'multi' | 'login' | 'empty' = 'multi') => {
-    const newName = `Проект_${new Date().toLocaleDateString().replace(/\./g, '_')}_${projectsList.length + 1}`;
+    const totalCount = projectsList.length + localStorageProjects.length;
+    const newName = `Проект_${new Date().toLocaleDateString().replace(/\./g, '_')}_${totalCount + 1}`;
     let newState = template === 'login' ? createLoginTemplate() : createMultiFormTemplate();
     newState.projectName = newName;
 
-    const newSaved: SavedProject = {
-      id: `proj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      name: newName,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      state: newState,
-    };
+    if (activeStorageTab === 'localstorage') {
+      saveProjectToLocalStorageList(newState);
+    } else {
+      const newSaved: SavedProject = {
+        id: `proj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: newName,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        state: newState,
+      };
+      await db.projects.add(newSaved);
+    }
 
-    await db.projects.add(newSaved);
     await refreshProjects();
     setProjectState(newState);
     showNotification(`Создан новый проект «${newName}»`);
@@ -133,52 +149,60 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ isOpen
   };
 
   // 2. Open Project
-  const handleOpenProject = async (p: SavedProject) => {
+  const handleOpenProject = async (p: any) => {
     setProjectState(p.state);
     showNotification(`Открыт проект «${p.name}»`);
     onClose();
   };
 
   // 3. Duplicate Project
-  const handleDuplicateProject = async (p: SavedProject) => {
+  const handleDuplicateProject = async (p: any) => {
     const dupName = `${p.name} (Копия)`;
     const dupState = JSON.parse(JSON.stringify(p.state));
     dupState.projectName = dupName;
 
-    const dupSaved: SavedProject = {
-      id: `proj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      name: dupName,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      state: dupState,
-    };
-
-    await db.projects.add(dupSaved);
+    if (activeStorageTab === 'localstorage') {
+      saveProjectToLocalStorageList(dupState);
+    } else {
+      const dupSaved: SavedProject = {
+        id: `proj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: dupName,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        state: dupState,
+      };
+      await db.projects.add(dupSaved);
+    }
     await refreshProjects();
     showNotification(`Проект «${p.name}» успешно продублирован`);
   };
 
   // 4. Delete Project
-  const handleDeleteProject = async (p: SavedProject) => {
-    if (projectsList.length <= 1) {
-      showNotification('Нельзя удалить единственный проект', 'error');
+  const handleDeleteProject = async (p: any) => {
+    const listCount = activeStorageTab === 'localstorage' ? localStorageProjects.length : projectsList.length;
+    if (listCount <= 1 && activeStorageTab !== 'localstorage') {
+      showNotification('Нельзя удалить единственный проект из БД', 'error');
       return;
     }
-    if (window.confirm(`Вы уверены, что хотите удалить проект «${p.name}» из хранилища?`)) {
-      await db.projects.delete(p.id);
+    if (window.confirm(`Вы уверены, что хотите удалить проект «${p.name}» из ${activeStorageTab === 'localstorage' ? 'LocalStorage' : 'IndexedDB'}?`)) {
+      if (activeStorageTab === 'localstorage') {
+        deleteProjectFromLocalStorageList(p.id);
+      } else {
+        await db.projects.delete(p.id);
+      }
       await refreshProjects();
       showNotification(`Проект «${p.name}» удален`);
     }
   };
 
   // 5. Export project (.zip or .json)
-  const handleExportZip = async (p: SavedProject) => {
+  const handleExportZip = async (p: any) => {
     showNotification(`Подготовка архива «${p.name}.zip»...`, 'info');
     await exportProjectAsZip(p.state);
-    showNotification(`Архив «${p.name}.zip» успешно скачан`);
+    showNotification(`Архив «${p.name}.zip}» успешно скачан`);
   };
 
-  const handleExportJson = (p: SavedProject) => {
+  const handleExportJson = (p: any) => {
     const jsonStr = JSON.stringify(p.state, null, 2);
     downloadFile(`${p.name}.designer.json`, jsonStr, 'application/json');
     showNotification(`Файл «${p.name}.designer.json» сохранен`);
@@ -202,18 +226,22 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ isOpen
         const name = file.name.replace(/\.(json|designer\.json)$/i, '');
         parsedState.projectName = name;
 
-        // Auto-migrate legacy schema if needed (Pravka 11.3)
+        // Auto-migrate legacy schema if needed
         const { state: migratedState } = migrateProjectSchema(parsedState);
 
-        const newSaved: SavedProject = {
-          id: `proj_${Date.now()}_imported`,
-          name,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          state: migratedState,
-        };
+        if (activeStorageTab === 'localstorage') {
+          saveProjectToLocalStorageList(migratedState);
+        } else {
+          const newSaved: SavedProject = {
+            id: `proj_${Date.now()}_imported`,
+            name,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            state: migratedState,
+          };
+          await db.projects.add(newSaved);
+        }
 
-        await db.projects.add(newSaved);
         await refreshProjects();
         setProjectState(migratedState);
         showNotification(`Проект «${name}» успешно импортирован`);
@@ -227,14 +255,30 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ isOpen
   };
 
   // 7. Rename project
-  const handleSaveRename = async (p: SavedProject) => {
+  const handleSaveRename = async (p: any) => {
     if (!editingProjectName.trim()) return;
     const updatedState = { ...p.state, projectName: editingProjectName.trim() };
-    await db.projects.update(p.id, {
-      name: editingProjectName.trim(),
-      updatedAt: Date.now(),
-      state: updatedState,
-    });
+
+    if (activeStorageTab === 'localstorage') {
+      const raw = localStorage.getItem('nextgen_csharp_saved_projects_v1');
+      if (raw) {
+        const list: LocalStorageSavedProject[] = JSON.parse(raw);
+        const idx = list.findIndex(item => item.id === p.id);
+        if (idx > -1) {
+          list[idx].name = editingProjectName.trim();
+          list[idx].updatedAt = Date.now();
+          list[idx].state = updatedState;
+          localStorage.setItem('nextgen_csharp_saved_projects_v1', JSON.stringify(list));
+        }
+      }
+    } else {
+      await db.projects.update(p.id, {
+        name: editingProjectName.trim(),
+        updatedAt: Date.now(),
+        state: updatedState,
+      });
+    }
+
     setEditingProjectId(null);
     await refreshProjects();
     if (project.projectName === p.name) {
@@ -283,13 +327,23 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ isOpen
 
   // Filtered projects
   const filteredProjects = useMemo(() => {
-    if (!searchQuery.trim()) return projectsList;
+    const activeList = activeStorageTab === 'localstorage'
+      ? localStorageProjects.map(p => ({
+          id: p.id,
+          name: p.name,
+          createdAt: p.createdAt,
+          updatedAt: p.updatedAt,
+          state: p.state
+        }))
+      : projectsList;
+
+    if (!searchQuery.trim()) return activeList;
     const q = searchQuery.toLowerCase().trim();
-    return projectsList.filter(p =>
+    return activeList.filter(p =>
       p.name.toLowerCase().includes(q) ||
       (p.state.projectName && p.state.projectName.toLowerCase().includes(q))
     );
-  }, [projectsList, searchQuery]);
+  }, [projectsList, localStorageProjects, activeStorageTab, searchQuery]);
 
   if (!isOpen) return null;
 
@@ -304,10 +358,10 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ isOpen
             </div>
             <div>
               <span className="font-semibold text-sm text-zinc-100 tracking-wide">
-                🗂 Менеджер проектов (IndexedDB & Local Disk Storage)
+                🗂 Менеджер проектов (LocalStorage & IndexedDB)
               </span>
               <span className="ml-2 text-xs text-zinc-500 font-mono">
-                [Проектов в БД: {projectsList.length}]
+                [Локальных: {localStorageProjects.length} | БД: {projectsList.length}]
               </span>
             </div>
           </div>
@@ -320,6 +374,34 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ isOpen
               <X className="w-4 h-4" />
             </button>
           </div>
+        </div>
+
+        {/* Storage Tabs Switcher */}
+        <div className="flex bg-zinc-950 border-b border-zinc-800 p-1 gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveStorageTab('localstorage')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded transition-all cursor-pointer ${
+              activeStorageTab === 'localstorage'
+                ? 'bg-purple-600 text-white shadow-md font-bold'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+            }`}
+          >
+            <span>💻</span>
+            <span>Локальный LocalStorage ({localStorageProjects.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveStorageTab('indexeddb')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded transition-all cursor-pointer ${
+              activeStorageTab === 'indexeddb'
+                ? 'bg-amber-600 text-white shadow-md font-bold'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+            }`}
+          >
+            <span>💾</span>
+            <span>База данных IndexedDB ({projectsList.length})</span>
+          </button>
         </div>
 
         {/* Notifications banner */}
@@ -369,7 +451,11 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ isOpen
               className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-amber-300 border border-amber-500/40 rounded text-xs font-semibold shadow-xs transition-colors cursor-pointer"
             >
               <HardDrive className="w-3.5 h-3.5 text-amber-400" />
-              <span>💾 Сохранить текущий в БД</span>
+              <span>
+                {activeStorageTab === 'localstorage' 
+                  ? '💾 Сохранить в LocalStorage' 
+                  : '💾 Сохранить в БД IndexedDB'}
+              </span>
             </button>
 
             <button

@@ -170,13 +170,9 @@ export interface DesignerStoreState {
 }
 
 const getInitialProject = (): DesignerProjectState => {
-  const saved = loadProjectFromLocalStorage();
-  if (saved && saved.rootFormId && saved.nodes && Object.keys(saved.nodes).length > 0) {
-    const { state } = migrateProjectSchema(saved);
-    return state;
-  }
   const tpl = createMultiFormTemplate();
   tpl.version = CURRENT_SCHEMA_VERSION;
+  tpl.projectName = `Проект_${new Date().toLocaleDateString().replace(/\./g, '_')}`;
   return tpl;
 };
 

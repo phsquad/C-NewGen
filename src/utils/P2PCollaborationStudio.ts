@@ -94,7 +94,9 @@ export class P2PCollaborationStudio {
         const prov = new WebrtcProvider(roomName, this.ydoc, {
           signaling: [
             'wss://signaling.yjs.dev',
-            'wss://y-webrtc-signaling-eu.herokuapp.com'
+            'wss://y-webrtc-signaling-eu.herokuapp.com',
+            'wss://y-webrtc-signaling-us.herokuapp.com',
+            'wss://y-webrtc.schmied.dev'
           ]
         });
         this.provider = prov;

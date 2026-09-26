@@ -168,16 +168,6 @@ export const DesignerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
     // Set initial list
     setP2pPeers(Array.from(instance.peers.values()));
-
-    // Synchronize Node modifications
-    instance.registerOnNodeSync((nodeId, nodeData) => {
-      if (nodeData.bounds) {
-        store.updateNodeBounds(nodeId, nodeData.bounds, false);
-      }
-      if (nodeData.properties) {
-        store.updateNodeProperties(nodeId, nodeData.properties, false);
-      }
-    });
   };
 
   const stopP2PSession = () => {
@@ -189,6 +179,97 @@ export const DesignerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setP2pSessionCode(null);
     setP2pPeers([]);
   };
+
+  // Bi-directional multiplayer synchronization effect
+  useEffect(() => {
+    if (!p2pInstance) return;
+
+    let isSyncing = false;
+    let prevNodes = useDesignerStore.getState().nodes;
+
+    // 1. Sync remote Y.js map changes to local Zustand store
+    const syncFromYjs = () => {
+      if (isSyncing) return;
+      isSyncing = true;
+      try {
+        const sharedMap = p2pInstance.getSharedNodes();
+        const yNodes = sharedMap.toJSON() as Record<string, any>;
+        
+        // If empty, seed the room with our local nodes
+        if (Object.keys(yNodes).length === 0) {
+          const localNodes = useDesignerStore.getState().nodes;
+          p2pInstance.ydoc.transact(() => {
+            Object.entries(localNodes).forEach(([id, node]) => {
+              sharedMap.set(id, JSON.parse(JSON.stringify(node)));
+            });
+          });
+          isSyncing = false;
+          return;
+        }
+
+        // Compare and update local store if different
+        const localNodes = useDesignerStore.getState().nodes;
+        if (JSON.stringify(localNodes) !== JSON.stringify(yNodes)) {
+          useDesignerStore.setState({ nodes: yNodes });
+          prevNodes = yNodes;
+        }
+      } catch (err) {
+        console.error('Error syncing from Yjs:', err);
+      } finally {
+        isSyncing = false;
+      }
+    };
+
+    const sharedMap = p2pInstance.getSharedNodes();
+    sharedMap.observe(syncFromYjs);
+    
+    // Initial pull
+    syncFromYjs();
+
+    // 2. Sync local Zustand store changes to remote Y.js map
+    const unsubscribe = useDesignerStore.subscribe((state) => {
+      if (isSyncing) return;
+      
+      const nodes = state.nodes;
+      if (nodes === prevNodes) return;
+
+      isSyncing = true;
+      try {
+        p2pInstance.ydoc.transact(() => {
+          // Sync additions and modifications
+          Object.entries(nodes).forEach(([id, node]) => {
+            const prevNode = prevNodes[id];
+            if (!prevNode || prevNode !== node) {
+              const yNode = sharedMap.get(id);
+              if (!yNode || JSON.stringify(node) !== JSON.stringify(yNode)) {
+                sharedMap.set(id, JSON.parse(JSON.stringify(node)));
+              }
+            }
+          });
+
+          // Sync deletions
+          Object.keys(prevNodes).forEach((id) => {
+            if (!nodes[id]) {
+              if (sharedMap.has(id)) {
+                sharedMap.delete(id);
+              }
+            }
+          });
+        });
+        
+        prevNodes = nodes;
+      } catch (err) {
+        console.error('Error syncing to Yjs:', err);
+      } finally {
+        isSyncing = false;
+      }
+    });
+
+    return () => {
+      sharedMap.unobserve(syncFromYjs);
+      unsubscribe();
+    };
+  }, [p2pInstance]);
 
   // By default, start in Solo (offline) mode
   useEffect(() => {

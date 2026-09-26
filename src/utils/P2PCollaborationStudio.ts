@@ -1,5 +1,6 @@
 import * as Y from 'yjs';
 import { WebrtcProvider } from 'y-webrtc';
+import { WebsocketProvider } from 'y-websocket';
 
 export interface RemotePeerCursor {
   peerId: string;
@@ -12,12 +13,13 @@ export interface RemotePeerCursor {
   lastUpdate: number;
 }
 
-// Module-level dictionary to avoid duplicate WebRTC connection instances
+// Module-level dictionary to avoid duplicate connection instances
 const activeProviders = new Map<string, any>();
 
 export class P2PCollaborationStudio {
   public ydoc: Y.Doc;
   private provider: any = null;
+  private broadcastChannel: BroadcastChannel | null = null;
   public peers: Map<string, RemotePeerCursor> = new Map();
   private roomCode: string;
   private userName: string;
@@ -29,12 +31,11 @@ export class P2PCollaborationStudio {
   // Customizable network settings
   public networkMode: 'global-p2p' | 'local-lan' | 'custom-server' = 'global-p2p';
   public password = '********';
-  public hostIp = '192.168.1.105';
-  public port = 8080;
-  public customServerUrl = 'wss://signaling.yjs.dev';
+  public hostIp = '127.0.0.1';
+  public port = 1234;
+  public customServerUrl = 'wss://demos.yjs.dev';
 
-  // For simulation and delayed init
-  private simInterval: any = null;
+  // For delayed initialization
   private initTimeout: any = null;
 
   constructor(roomCode: string, userName: string, userColor: string) {
@@ -42,23 +43,6 @@ export class P2PCollaborationStudio {
     this.userName = userName;
     this.userColor = userColor;
     this.ydoc = new Y.Doc();
-
-    const roomName = `devos-room-${roomCode}`;
-
-    // Safely check and destroy existing provider for this room to prevent duplicate connection error
-    if (activeProviders.has(roomName)) {
-      const existing = activeProviders.get(roomName);
-      if (existing) {
-        try {
-          if (existing.room) {
-            existing.destroy();
-          }
-        } catch (err) {
-          console.warn('Silent cleanup of existing provider:', err);
-        }
-      }
-      activeProviders.delete(roomName);
-    }
 
     // Initialize CRDT Observers synchronously so they can receive updates immediately
     try {
@@ -86,73 +70,230 @@ export class P2PCollaborationStudio {
       console.warn('Sync observer registration error:', err);
     }
 
-    // Delay the actual WebRTC provider creation to the next tick (100ms) to allow
-    // the asynchronous rooms.delete(roomName) of any destroyed provider to complete!
+    // Initialize the network provider
+    this.initProvider();
+  }
+
+  /**
+   * Initializes the synchronization provider based on the active networkMode
+   */
+  private initProvider() {
+    // Clear any previous init timeouts
+    if (this.initTimeout) {
+      clearTimeout(this.initTimeout);
+    }
+
+    const roomName = `devos-room-${this.roomCode}`;
+
+    // Clean up any existing provider for this room
+    this.cleanupActiveProvider();
+
+    // Set up delayed init to prevent race conditions in React renders
     this.initTimeout = setTimeout(() => {
       try {
-        // Initialize WebRTC P2P DataChannel provider with high-reliability signaling and STUN servers
-        const prov = new WebrtcProvider(roomName, this.ydoc, {
-          signaling: [
-            'wss://y-webrtc.as93.net',
-            'wss://y-webrtc.schmied.dev',
-            'wss://signaling.yjs.dev',
-            'wss://y-webrtc-signaling-eu.herokuapp.com',
-            'wss://y-webrtc-signaling-us.herokuapp.com'
-          ],
-          peerOpts: {
-            config: {
-              iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:stun3.l.google.com:19302' },
-                { urls: 'stun:stun4.l.google.com:19302' }
-              ]
+        if (this.networkMode === 'global-p2p') {
+          // STRATEGY A: Global WebRTC P2P (Direct Connection via STUN/Signaling)
+          const prov = new WebrtcProvider(roomName, this.ydoc, {
+            signaling: [
+              'wss://y-webrtc.as93.net',
+              'wss://y-webrtc.schmied.dev',
+              'wss://signaling.yjs.dev',
+              'wss://y-webrtc-signaling-eu.herokuapp.com',
+              'wss://y-webrtc-signaling-us.herokuapp.com'
+            ],
+            peerOpts: {
+              config: {
+                iceServers: [
+                  { urls: 'stun:stun.l.google.com:19302' },
+                  { urls: 'stun:stun1.l.google.com:19302' },
+                  { urls: 'stun:stun2.l.google.com:19302' },
+                  { urls: 'stun:stun3.l.google.com:19302' },
+                  { urls: 'stun:stun4.l.google.com:19302' }
+                ]
+              }
             }
-          }
-        });
-        this.provider = prov;
-        activeProviders.set(roomName, prov);
+          });
+          this.provider = prov;
+          activeProviders.set(roomName, prov);
 
-        // Set Local awareness state
-        this.provider.awareness.setLocalStateField('user', {
-          name: userName,
-          color: userColor,
-          cursor: { x: 0, y: 0 },
-          selectedNodeId: null,
-          activeFile: 'Form1.cs'
-        });
+          // Configure awareness
+          prov.awareness.setLocalStateField('user', {
+            name: this.userName,
+            color: this.userColor,
+            cursor: { x: 0, y: 0 },
+            selectedNodeId: null,
+            activeFile: 'Form1.cs'
+          });
 
-        // Monitor remote awareness changes
-        this.provider.awareness.on('change', () => {
-          if (!this.provider) return;
-          const states = this.provider.awareness.getStates();
-          const currentPeers = new Map<string, RemotePeerCursor>();
+          prov.awareness.on('change', () => this.handleAwarenessChange(prov.awareness));
 
-          states.forEach((state: any, clientID: number) => {
-            if (clientID === this.ydoc.clientID) return;
+        } else if (this.networkMode === 'custom-server') {
+          // STRATEGY B: Centralized WebSocket Relay (100% Reliable Client-Server Sync)
+          const wsUrl = `${this.customServerUrl}/${roomName}`;
+          const prov = new WebsocketProvider(this.customServerUrl, roomName, this.ydoc);
+          this.provider = prov;
+          activeProviders.set(roomName, prov);
 
-            if (state.user) {
-              currentPeers.set(String(clientID), {
-                peerId: String(clientID),
-                name: state.user.name,
-                color: state.user.color,
-                x: state.user.cursor?.x || 0,
-                y: state.user.cursor?.y || 0,
-                selectedNodeId: state.user.selectedNodeId || null,
-                activeFile: state.user.activeFile || 'Form1.cs',
-                lastUpdate: Date.now()
-              });
+          // Configure awareness
+          prov.awareness.setLocalStateField('user', {
+            name: this.userName,
+            color: this.userColor,
+            cursor: { x: 0, y: 0 },
+            selectedNodeId: null,
+            activeFile: 'Form1.cs'
+          });
+
+          prov.awareness.on('change', () => this.handleAwarenessChange(prov.awareness));
+
+        } else if (this.networkMode === 'local-lan') {
+          // STRATEGY C: Local Cross-Tab Sync (Offline local BroadcastChannel sync)
+          const channelName = `devos-local-sync-${this.roomCode}`;
+          const bc = new BroadcastChannel(channelName);
+          this.broadcastChannel = bc;
+
+          // Sync initial document by requesting from other tabs
+          bc.postMessage({ type: 'sync_request' });
+
+          bc.onmessage = (event) => {
+            if (!event.data) return;
+            
+            if (event.data.type === 'sync_request') {
+              // Send current state to requesting tab
+              const state = Y.encodeStateAsUpdate(this.ydoc);
+              bc.postMessage({ type: 'sync_response', state });
+            } else if (event.data.type === 'sync_response') {
+              Y.applyUpdate(this.ydoc, event.data.state, bc);
+            } else if (event.data.type === 'document_update') {
+              Y.applyUpdate(this.ydoc, event.data.update, bc);
+            } else if (event.data.type === 'awareness_update') {
+              this.handleLocalAwarenessMessage(event.data.client, event.data.user);
+            }
+          };
+
+          // Distribute local updates to other tabs
+          this.ydoc.on('update', (update, origin) => {
+            if (origin !== bc) {
+              bc.postMessage({ type: 'document_update', update });
             }
           });
 
-          this.peers = currentPeers;
-          this.triggerPeersChange();
-        });
-      } catch (e) {
-        console.warn('WebRTC signal setup delayed init caught:', e);
+          // Simulate a basic awareness for local cross-tab mode
+          this.broadcastLocalCursor(0, 0, null);
+        }
+
+        // Trigger peer change update
+        this.triggerPeersChange();
+      } catch (err) {
+        console.error('Error initializing sync provider:', err);
       }
     }, 100);
+  }
+
+  /**
+   * Cleans up the active network provider
+   */
+  private cleanupActiveProvider() {
+    const roomName = `devos-room-${this.roomCode}`;
+
+    if (this.provider) {
+      try {
+        if (this.provider.destroy) {
+          this.provider.destroy();
+        }
+      } catch (err) {
+        console.warn('Error during provider cleanup:', err);
+      }
+      this.provider = null;
+    }
+
+    if (activeProviders.has(roomName)) {
+      const existing = activeProviders.get(roomName);
+      if (existing && existing !== this.provider) {
+        try {
+          existing.destroy();
+        } catch (e) {}
+      }
+      activeProviders.delete(roomName);
+    }
+
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.close();
+      } catch (e) {}
+      this.broadcastChannel = null;
+    }
+
+    this.peers.clear();
+  }
+
+  /**
+   * Monitor remote awareness changes for WebRTC / WebSocket
+   */
+  private handleAwarenessChange(awareness: any) {
+    const states = awareness.getStates();
+    const currentPeers = new Map<string, RemotePeerCursor>();
+
+    states.forEach((state: any, clientID: number) => {
+      if (clientID === this.ydoc.clientID) return;
+
+      if (state.user) {
+        currentPeers.set(String(clientID), {
+          peerId: String(clientID),
+          name: state.user.name,
+          color: state.user.color,
+          x: state.user.cursor?.x || 0,
+          y: state.user.cursor?.y || 0,
+          selectedNodeId: state.user.selectedNodeId || null,
+          activeFile: state.user.activeFile || 'Form1.cs',
+          lastUpdate: Date.now()
+        });
+      }
+    });
+
+    this.peers = currentPeers;
+    this.triggerPeersChange();
+  }
+
+  /**
+   * Handle awareness updates in Local Tab Sync mode
+   */
+  private handleLocalAwarenessMessage(client: string, user: any) {
+    if (client === String(this.ydoc.clientID)) return;
+
+    if (user) {
+      this.peers.set(client, {
+        peerId: client,
+        name: user.name,
+        color: user.color,
+        x: user.cursor?.x || 0,
+        y: user.cursor?.y || 0,
+        selectedNodeId: user.selectedNodeId || null,
+        activeFile: user.activeFile || 'Form1.cs',
+        lastUpdate: Date.now()
+      });
+    } else {
+      this.peers.delete(client);
+    }
+    this.triggerPeersChange();
+  }
+
+  /**
+   * Broadcast local state in Local cross-tab mode
+   */
+  private broadcastLocalCursor(x: number, y: number, selectedId: string | null, activeFile = 'Form1.cs') {
+    if (this.broadcastChannel) {
+      this.broadcastChannel.postMessage({
+        type: 'awareness_update',
+        client: String(this.ydoc.clientID),
+        user: {
+          name: this.userName,
+          color: this.userColor,
+          cursor: { x, y },
+          selectedNodeId: selectedId,
+          activeFile
+        }
+      });
+    }
   }
 
   public registerOnPeersChange(cb: () => void) {
@@ -188,26 +329,44 @@ export class P2PCollaborationStudio {
     userName?: string;
     userColor?: string;
   }) {
-    if (config.mode !== undefined) this.networkMode = config.mode;
+    let modeChanged = false;
+
+    if (config.mode !== undefined && config.mode !== this.networkMode) {
+      this.networkMode = config.mode;
+      modeChanged = true;
+    }
     if (config.password !== undefined) this.password = config.password;
     if (config.hostIp !== undefined) this.hostIp = config.hostIp;
     if (config.port !== undefined) this.port = config.port;
-    if (config.customServerUrl !== undefined) this.customServerUrl = config.customServerUrl;
+    if (config.customServerUrl !== undefined && config.customServerUrl !== this.customServerUrl) {
+      this.customServerUrl = config.customServerUrl;
+      modeChanged = true;
+    }
     if (config.userName !== undefined) this.userName = config.userName;
     if (config.userColor !== undefined) this.userColor = config.userColor;
 
-    if (this.provider && this.provider.awareness) {
-      try {
-        const state = this.provider.awareness.getLocalState() || {};
-        this.provider.awareness.setLocalStateField('user', {
-          name: this.userName,
-          color: this.userColor,
-          cursor: state.user?.cursor || { x: 0, y: 0 },
-          selectedNodeId: state.user?.selectedNodeId || null,
-          activeFile: state.user?.activeFile || 'Form1.cs'
-        });
-      } catch (err) {}
+    if (modeChanged) {
+      // Re-initialize provider on strategy switch
+      this.initProvider();
+    } else {
+      // Just update local awareness
+      if (this.provider && this.provider.awareness) {
+        try {
+          const state = this.provider.awareness.getLocalState() || {};
+          this.provider.awareness.setLocalStateField('user', {
+            name: this.userName,
+            color: this.userColor,
+            cursor: state.user?.cursor || { x: 0, y: 0 },
+            selectedNodeId: state.user?.selectedNodeId || null,
+            activeFile: state.user?.activeFile || 'Form1.cs'
+          });
+        } catch (err) {}
+      }
+      if (this.networkMode === 'local-lan') {
+        this.broadcastLocalCursor(0, 0, null);
+      }
     }
+
     this.triggerPeersChange();
   }
 
@@ -229,6 +388,10 @@ export class P2PCollaborationStudio {
       } catch (err) {
         // Safe awareness catch
       }
+    }
+
+    if (this.networkMode === 'local-lan') {
+      this.broadcastLocalCursor(x, y, selectedId, activeFile);
     }
   }
 
@@ -257,27 +420,10 @@ export class P2PCollaborationStudio {
     return this.ydoc.getText('form1_csharp_code');
   }
 
-
   public destroy() {
     if (this.initTimeout) {
       clearTimeout(this.initTimeout);
     }
-    if (this.simInterval) {
-      clearInterval(this.simInterval);
-    }
-    const roomName = `devos-room-${this.roomCode}`;
-    if (this.provider) {
-      try {
-        // Prevent calling destroy() when this.room is null to fix:
-        // "can't access property 'destroy', this.room is null"
-        if (this.provider.room) {
-          this.provider.destroy();
-        }
-      } catch (err) {
-        console.warn('Provider destroy caught:', err);
-      }
-      activeProviders.delete(roomName);
-      this.provider = null;
-    }
+    this.cleanupActiveProvider();
   }
 }

@@ -103,6 +103,7 @@ export const TopHeaderBar: React.FC = () => {
     p2pPeers,
     startP2PSession,
     stopP2PSession,
+    p2pInstance,
   } = useDesigner();
 
   // Dropdown menus states
@@ -119,6 +120,18 @@ export const TopHeaderBar: React.FC = () => {
   const [beautifyNotice, setBeautifyNotice] = useState(false);
   const [projectsCount, setProjectsCount] = useState(2);
   const [diskSyncSuccess, setDiskSyncSuccess] = useState(false);
+
+  // Multiplayer strategies & networking modal states
+  const [networkModalOpen, setNetworkModalOpen] = useState(false);
+  const [tempRoomName, setTempRoomName] = useState(p2pSessionCode || '');
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  // Sync tempRoomName when session code changes
+  useEffect(() => {
+    if (p2pSessionCode) {
+      setTempRoomName(p2pSessionCode);
+    }
+  }, [p2pSessionCode]);
 
   const [pwaPrompt, setPwaPrompt] = useState<any>(null);
   const [isPwaInstalled, setIsPwaInstalled] = useState(false);
@@ -425,19 +438,17 @@ export const TopHeaderBar: React.FC = () => {
       {!p2pSessionCode ? (
         <button
           type="button"
-          onClick={() => {
-            const code = prompt('Введите имя комнаты (например: LAB1):');
-            if (code) {
-              startP2PSession(code);
-            }
-          }}
-          className="px-2.5 py-1 text-[11px] bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 rounded-xl flex items-center gap-1.5 transition cursor-pointer font-medium"
+          onClick={() => setNetworkModalOpen(true)}
+          className="px-2.5 py-1 text-[11px] bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 rounded-xl flex items-center gap-1.5 transition cursor-pointer font-medium hover:scale-102"
         >
-          <span>👤</span>
-          <span>Соло (Оффлайн)</span>
+          <span>🌐</span>
+          <span>Мультиплеер (Оффлайн)</span>
         </button>
       ) : (
-        <div className="flex items-center gap-2 bg-blue-950/40 border border-blue-800/60 px-2.5 py-1 rounded-xl text-[11px] font-medium">
+        <div 
+          onClick={() => setNetworkModalOpen(true)}
+          className="flex items-center gap-2 bg-blue-950/40 border border-blue-800/60 px-2.5 py-1 rounded-xl text-[11px] font-medium cursor-pointer hover:bg-blue-900/40 transition hover:scale-102"
+        >
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
           <span className="text-blue-200 font-bold">Комната: {p2pSessionCode}</span>
           <span className="text-zinc-400">
@@ -445,7 +456,10 @@ export const TopHeaderBar: React.FC = () => {
           </span>
           <button
             type="button"
-            onClick={stopP2PSession}
+            onClick={(e) => {
+              e.stopPropagation(); // prevent modal opening
+              stopP2PSession();
+            }}
             className="ml-1 text-rose-400 hover:text-rose-300 font-bold cursor-pointer text-xs leading-none"
             title="Выйти из комнаты"
           >
@@ -613,6 +627,234 @@ export const TopHeaderBar: React.FC = () => {
         isOpen={storageModalOpen}
         onClose={() => setStorageModalOpen(false)}
       />
+
+      {/* GORGEOUS MULTIPLAYER & NETWORK STRATEGIES SETTINGS MODAL */}
+      {networkModalOpen && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col font-sans">
+            {/* Modal Header */}
+            <div className="px-5 py-4 bg-zinc-950 border-b border-zinc-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Wifi className="w-5 h-5 text-blue-400" />
+                <span className="font-bold text-sm text-zinc-100 font-mono">🌐 СЕТЬ И МУЛЬТИПЛЕЕР</span>
+              </div>
+              <button
+                onClick={() => setNetworkModalOpen(false)}
+                className="p-1 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white cursor-pointer transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-5 space-y-5 overflow-y-auto max-h-[75vh]">
+              {/* 1. ROOM JOIN / DISCONNECT */}
+              <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 space-y-3">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase block font-mono">🔑 Подключение к комнате</span>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Например: LAB1"
+                    value={tempRoomName}
+                    onChange={(e) => setTempRoomName(e.target.value.toUpperCase().trim())}
+                    disabled={!!p2pSessionCode}
+                    className="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                  />
+                  {p2pSessionCode ? (
+                    <button
+                      onClick={() => {
+                        stopP2PSession();
+                      }}
+                      className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                    >
+                      Отключить
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        if (tempRoomName) {
+                          startP2PSession(tempRoomName);
+                        }
+                      }}
+                      disabled={!tempRoomName}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                    >
+                      Подключить
+                    </button>
+                  )}
+                </div>
+
+                {p2pSessionCode && (
+                  <div className="pt-2 flex items-center justify-between border-t border-zinc-900/60">
+                    <span className="text-[11px] text-zinc-400">Поделиться комнатой:</span>
+                    <button
+                      onClick={() => {
+                        const link = `${window.location.origin}${window.location.pathname}?room=${p2pSessionCode}`;
+                        navigator.clipboard.writeText(link);
+                        setCopiedLink(true);
+                        setTimeout(() => setCopiedLink(false), 2000);
+                      }}
+                      className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 text-[10px] text-blue-400 border border-zinc-800 rounded-lg flex items-center gap-1 transition cursor-pointer"
+                    >
+                      {copiedLink ? '✓ Скопировано' : '📋 Скопировать ссылку'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. SYNCHRONIZATION STRATEGIES */}
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase block font-mono">⚡ Стратегии синхронизации</span>
+                <div className="grid grid-cols-1 gap-2.5">
+                  {/* Strategy A: WebRTC */}
+                  <button
+                    onClick={() => {
+                      if (p2pInstance) {
+                        p2pInstance.configure({ mode: 'global-p2p' });
+                        // force rerender
+                        setTempRoomName(p2pSessionCode || '');
+                      }
+                    }}
+                    className={`text-left p-3 rounded-xl border flex gap-3 transition cursor-pointer ${
+                      p2pInstance?.networkMode === 'global-p2p'
+                        ? 'bg-blue-950/20 border-blue-500/60 shadow-lg shadow-blue-500/5'
+                        : 'bg-zinc-950 border-zinc-800/80 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-lg shrink-0 ${p2pInstance?.networkMode === 'global-p2p' ? 'bg-blue-500/20 text-blue-400' : 'bg-zinc-900 text-zinc-500'}`}>
+                      🌐
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-zinc-100 block">Глобальный P2P (WebRTC)</span>
+                      <span className="text-[10px] text-zinc-400 block leading-relaxed mt-0.5">
+                        Прямой децентрализованный обмен с Google STUN. Лучшее быстродействие.
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* Strategy B: Centralized WebSocket */}
+                  <div
+                    className={`text-left p-3 rounded-xl border flex flex-col gap-3 transition ${
+                      p2pInstance?.networkMode === 'custom-server'
+                        ? 'bg-purple-950/20 border-purple-500/60 shadow-lg shadow-purple-500/5'
+                        : 'bg-zinc-950 border-zinc-800/80 hover:border-zinc-700'
+                    }`}
+                  >
+                    <button
+                      onClick={() => {
+                        if (p2pInstance) {
+                          p2pInstance.configure({ mode: 'custom-server' });
+                          setTempRoomName(p2pSessionCode || '');
+                        }
+                      }}
+                      className="w-full text-left flex gap-3 cursor-pointer focus:outline-none"
+                    >
+                      <div className={`p-2 rounded-lg shrink-0 ${p2pInstance?.networkMode === 'custom-server' ? 'bg-purple-500/20 text-purple-400' : 'bg-zinc-900 text-zinc-500'}`}>
+                        🖥️
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-zinc-100 block">Центральный сервер (WebSocket)</span>
+                        <span className="text-[10px] text-zinc-400 block leading-relaxed mt-0.5">
+                          100% стабильность. Маршрутизация через выделенный WebSocket. Работает за любыми NAT/VPN.
+                        </span>
+                      </div>
+                    </button>
+
+                    {p2pInstance?.networkMode === 'custom-server' && (
+                      <div className="pt-2.5 border-t border-purple-900/40 flex flex-col gap-1.5 animate-fadeIn">
+                        <span className="text-[9px] text-zinc-500 font-mono">URL сервера WebSocket:</span>
+                        <input
+                          type="text"
+                          value={p2pInstance.customServerUrl}
+                          onChange={(e) => {
+                            p2pInstance.configure({ customServerUrl: e.target.value });
+                            setTempRoomName(p2pSessionCode || ''); // force render
+                          }}
+                          className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-[11px] font-mono text-zinc-300 focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Strategy C: Local Cross-Tab Sync */}
+                  <button
+                    onClick={() => {
+                      if (p2pInstance) {
+                        p2pInstance.configure({ mode: 'local-lan' });
+                        setTempRoomName(p2pSessionCode || '');
+                      }
+                    }}
+                    className={`text-left p-3 rounded-xl border flex gap-3 transition cursor-pointer ${
+                      p2pInstance?.networkMode === 'local-lan'
+                        ? 'bg-emerald-950/20 border-emerald-500/60 shadow-lg shadow-emerald-500/5'
+                        : 'bg-zinc-950 border-zinc-800/80 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-lg shrink-0 ${p2pInstance?.networkMode === 'local-lan' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-900 text-zinc-500'}`}>
+                      🔌
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-zinc-100 block">Локальный оффлайн мост (BroadcastChannel)</span>
+                      <span className="text-[10px] text-zinc-400 block leading-relaxed mt-0.5">
+                        Обмен между вкладками/окнами на этом ПК. Без интернета и задержки (0 мс!). Идеально для тестов.
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. ACTIVE PEERS */}
+              {p2pSessionCode && (
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase block font-mono">👥 Подключенные участники ({p2pPeers.length + 1})</span>
+                  <div className="bg-zinc-950 rounded-xl border border-zinc-800 p-3 space-y-2.5">
+                    {/* Local Peer (You) */}
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                        <span className="font-semibold text-zinc-200">Вы (Локальный редактор)</span>
+                      </div>
+                      <span className="text-[10px] bg-zinc-900 px-2 py-0.5 rounded text-zinc-400 font-mono">Лидер</span>
+                    </div>
+
+                    {/* Remote Peers */}
+                    {p2pPeers.map((peer) => (
+                      <div key={peer.peerId} className="flex items-center justify-between text-xs pt-2 border-t border-zinc-900/60 animate-fadeIn">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full"
+                            style={{ backgroundColor: peer.color || '#F59E0B' }}
+                          />
+                          <span className="text-zinc-300 font-medium">Напарник ({peer.peerId})</span>
+                        </div>
+                        <span className="text-[9px] bg-zinc-900 text-zinc-500 px-1.5 py-0.5 rounded font-mono">
+                          {peer.activeFile || 'Form1.cs'}
+                        </span>
+                      </div>
+                    ))}
+
+                    {p2pPeers.length === 0 && (
+                      <div className="text-[11px] text-zinc-500 text-center py-2 italic">
+                        Ожидание подключения напарников по ссылке комнаты...
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 bg-zinc-950 border-t border-zinc-800 flex justify-end">
+              <button
+                onClick={() => setNetworkModalOpen(false)}
+                className="px-4 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

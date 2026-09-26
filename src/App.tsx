@@ -65,23 +65,19 @@ const DesignerApp: React.FC = () => {
   // Studio Overlay Panel Mode ('database' | 'git' | 'terminal' | 'uml' | 'settings' | null)
   const [activeOverlay, setActiveOverlay] = useState<'database' | 'git' | 'terminal' | 'uml' | 'settings' | null>(null);
 
-  // Dynamically update URL hash and browser history whenever p2pSessionCode changes
+  // Dynamically update URL and browser history whenever p2pSessionCode changes
   useEffect(() => {
     try {
-      const hash = window.location.hash.replace(/^#/, '');
-      const hashParams = new URLSearchParams(hash);
       const url = new URL(window.location.href);
 
       if (p2pSessionCode) {
-        hashParams.set('room', p2pSessionCode);
         url.searchParams.set('room', p2pSessionCode);
       } else {
-        hashParams.delete('room');
         url.searchParams.delete('room');
       }
 
-      const newHash = hashParams.toString();
-      const newUrl = `${url.origin}${url.pathname}${url.search ? url.search : ''}${newHash ? '#' + newHash : ''}`;
+      // Preserve the hash (for project file load) and replace state
+      const newUrl = `${url.origin}${url.pathname}${url.search}${window.location.hash}`;
       
       window.history.replaceState(null, '', newUrl);
     } catch (e) {

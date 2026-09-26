@@ -90,14 +90,26 @@ export class P2PCollaborationStudio {
     // the asynchronous rooms.delete(roomName) of any destroyed provider to complete!
     this.initTimeout = setTimeout(() => {
       try {
-        // Initialize WebRTC P2P DataChannel provider
+        // Initialize WebRTC P2P DataChannel provider with high-reliability signaling and STUN servers
         const prov = new WebrtcProvider(roomName, this.ydoc, {
           signaling: [
+            'wss://y-webrtc.as93.net',
+            'wss://y-webrtc.schmied.dev',
             'wss://signaling.yjs.dev',
             'wss://y-webrtc-signaling-eu.herokuapp.com',
-            'wss://y-webrtc-signaling-us.herokuapp.com',
-            'wss://y-webrtc.schmied.dev'
-          ]
+            'wss://y-webrtc-signaling-us.herokuapp.com'
+          ],
+          peerOpts: {
+            config: {
+              iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' }
+              ]
+            }
+          }
         });
         this.provider = prov;
         activeProviders.set(roomName, prov);

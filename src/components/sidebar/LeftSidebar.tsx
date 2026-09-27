@@ -3,6 +3,8 @@ import { useDesigner } from '../../context/DesignerContext';
 import { ControlType } from '../../types/ast';
 import { COMPONENT_REGISTRY, ControlMetadata } from '../../utils/componentRegistry';
 import { NuGetIngestor } from '../../utils/NuGetIngestor';
+import { SolutionExplorerPro } from '../solution/SolutionExplorerPro';
+import { DocumentOutlinePanel } from './DocumentOutlinePanel';
 import {
   Search,
   Box,
@@ -322,33 +324,54 @@ export const LeftSidebar: React.FC = () => {
   }
 
   return (
-    <aside className="w-68 bg-zinc-900 border-r border-zinc-800 flex flex-col h-full select-none shrink-0 text-xs">
+    <aside className="w-72 bg-zinc-900 border-r border-zinc-800 flex flex-col h-full select-none shrink-0 text-xs">
       {/* Tab Switcher & Collapse Toggle */}
       <div className="flex items-center border-b border-zinc-800 bg-zinc-900/50 p-1 gap-1">
+        {/* Tab 1: Solution Explorer */}
+        <button
+          type="button"
+          onClick={() => setActiveLeftTab('solution')}
+          title="Обозреватель решений (Solution Explorer Pro)"
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 font-medium rounded transition-colors text-[11px] ${
+            activeLeftTab === 'solution'
+              ? 'bg-zinc-800 text-zinc-100 shadow-xs font-semibold'
+              : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <FolderTree className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <span>Решение</span>
+        </button>
+
+        {/* Tab 2: Toolbox */}
         <button
           type="button"
           onClick={() => setActiveLeftTab('toolbox')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 font-medium rounded transition-colors ${
+          title="Палитра компонентов (Toolbox)"
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 font-medium rounded transition-colors text-[11px] ${
             activeLeftTab === 'toolbox'
-              ? 'bg-zinc-800 text-zinc-100 shadow-xs'
+              ? 'bg-zinc-800 text-zinc-100 shadow-xs font-semibold'
               : 'text-zinc-400 hover:text-zinc-200'
           }`}
         >
-          <Box className="w-3.5 h-3.5 text-blue-400" />
-          <span>TOOLBOX</span>
+          <Box className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+          <span>Палитра</span>
         </button>
+
+        {/* Tab 3: Document Outline */}
         <button
           type="button"
           onClick={() => setActiveLeftTab('tree')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 font-medium rounded transition-colors ${
-            activeLeftTab === 'tree'
-              ? 'bg-zinc-800 text-zinc-100 shadow-xs'
+          title="Структура документа и Z-Index (Document Outline)"
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 font-medium rounded transition-colors text-[11px] ${
+            activeLeftTab === 'tree' || activeLeftTab === 'outline'
+              ? 'bg-zinc-800 text-zinc-100 shadow-xs font-semibold'
               : 'text-zinc-400 hover:text-zinc-200'
           }`}
         >
-          <Layers className="w-3.5 h-3.5 text-purple-400" />
-          <span>Иерархия</span>
+          <Layers className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+          <span>Структура</span>
         </button>
+
         <button
           type="button"
           onClick={() => setIsCollapsed(true)}
@@ -358,6 +381,9 @@ export const LeftSidebar: React.FC = () => {
           <ChevronRight className="w-4 h-4 rotate-180" />
         </button>
       </div>
+
+      {/* Content for Solution Explorer Pro Tab */}
+      {activeLeftTab === 'solution' && <SolutionExplorerPro />}
 
       {/* Content for Toolbox Tab */}
       {activeLeftTab === 'toolbox' && (
@@ -563,27 +589,8 @@ export const LeftSidebar: React.FC = () => {
         </div>
       )}
 
-      {/* Content for Hierarchy Tree Tab */}
-      {activeLeftTab === 'tree' && (
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="p-2 border-b border-zinc-800/80 flex items-center justify-between text-xs text-zinc-400">
-            <span>Структура формы ({Object.keys(project.nodes).length})</span>
-            {selectedNode && selectedNode.id !== project.rootFormId && (
-              <button
-                type="button"
-                onClick={deleteSelectedNodes}
-                className="text-red-400 hover:text-red-300 flex items-center gap-1 text-[11px]"
-              >
-                <Trash2 className="w-3 h-3" />
-                <span>Удалить</span>
-              </button>
-            )}
-          </div>
-          <div className="flex-1 overflow-y-auto py-1">
-            {renderTreeNode(project.rootFormId)}
-          </div>
-        </div>
-      )}
+      {/* Content for Document Outline Tab */}
+      {(activeLeftTab === 'tree' || activeLeftTab === 'outline') && <DocumentOutlinePanel />}
     </aside>
   );
 };

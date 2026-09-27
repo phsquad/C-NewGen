@@ -19,10 +19,12 @@ import { registerServiceWorker } from './utils/serviceWorkerRegistration';
 import { decodeProjectFromHashUrl, getRoomIdFromUrl } from './utils/urlHashSharing';
 import { DevOSDesktop } from './components/devos/DevOSDesktop';
 import { StorageManagerModal } from './components/modals/StorageManagerModal';
+import { ErrorListPanel } from './components/diagnostics/ErrorListPanel';
 import {
   Share2,
   Box,
   Layers,
+  FolderTree,
   Database,
   GitFork,
   Terminal as TerminalIcon,
@@ -56,6 +58,8 @@ const DesignerApp: React.FC = () => {
     liveRunOpen,
     importModalOpen,
     setImportModalOpen,
+    errorListOpen,
+    setErrorListOpen,
   } = useDesigner();
 
   const [shareToast, setShareToast] = useState<string | null>(null);
@@ -190,7 +194,7 @@ const DesignerApp: React.FC = () => {
   }
 
   // Handle Left Activity click events
-  const handleTabClick = (tab: 'toolbox' | 'tree') => {
+  const handleTabClick = (tab: 'solution' | 'toolbox' | 'tree') => {
     window.dispatchEvent(new CustomEvent('set-left-tab', { detail: tab }));
   };
 
@@ -202,6 +206,15 @@ const DesignerApp: React.FC = () => {
       {/* 2. Left Activity Bar (48px) */}
       <aside className="studio-activity-bar flex flex-col justify-between py-3 text-zinc-400 select-none bg-zinc-950 border-r border-zinc-900 z-40 shrink-0">
         <div className="flex flex-col items-center gap-4 w-full">
+          {/* Solution Explorer Pro */}
+          <button
+            onClick={() => handleTabClick('solution')}
+            title="Обозреватель решений (Solution Explorer Pro)"
+            className="p-2 hover:bg-zinc-900 rounded-lg hover:text-white transition cursor-pointer"
+          >
+            <FolderTree className="w-5 h-5 text-amber-400 hover:scale-105 transition" />
+          </button>
+
           {/* Palette / Toolbox */}
           <button
             onClick={() => handleTabClick('toolbox')}
@@ -211,10 +224,10 @@ const DesignerApp: React.FC = () => {
             <Box className="w-5 h-5 text-blue-400 hover:scale-105 transition" />
           </button>
 
-          {/* Component Tree */}
+          {/* Component Tree / Document Outline */}
           <button
             onClick={() => handleTabClick('tree')}
-            title="Иерархия слоев и дерево компонентов"
+            title="Структура документа и Z-Index (Document Outline)"
             className="p-2 hover:bg-zinc-900 rounded-lg hover:text-white transition cursor-pointer"
           >
             <Layers className="w-5 h-5 text-purple-400 hover:scale-105 transition" />
@@ -277,6 +290,9 @@ const DesignerApp: React.FC = () => {
           <div className="flex-1 relative overflow-hidden">
             <DesignSurface />
           </div>
+
+          {/* Microsoft VS Standard: Error List & Diagnostic Panel */}
+          {errorListOpen && <ErrorListPanel onClose={() => setErrorListOpen(false)} />}
 
           {/* Live C# Codebehind / Designer drawer */}
           <CodePreviewPanel />

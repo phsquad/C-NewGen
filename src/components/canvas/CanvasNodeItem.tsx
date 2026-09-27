@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { DesignerNode } from '../../types/ast';
 import { ControlRenderer } from './ControlRenderer';
+import { SmartTagActionGlyph } from './SmartTagActionGlyph';
 import { useDesigner } from '../../context/DesignerContext';
 
 interface CanvasNodeItemProps {
@@ -33,20 +34,20 @@ export const CanvasNodeItem = memo<CanvasNodeItemProps>(({
   renderChildren,
 }) => {
   const isContainer = ['Panel', 'GroupBox', 'TabControl'].includes(node.type);
-  const { p2pPeers } = useDesigner();
+  const { p2pPeers, isTabOrderMode, assignTabIndex } = useDesigner();
 
   // Find if any remote peer has selected this control (Multi-Select Color Halo - Pravka 25.3)
   const activePeer = p2pPeers?.find(p => p.selectedNodeId === node.id);
 
   const handleDragOver = (e: React.DragEvent) => {
-    if (isContainer && !isEmulatorMode) {
+    if (isContainer && !isEmulatorMode && !isTabOrderMode) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
     }
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    if (isContainer && onDropOnContainer && !isEmulatorMode) {
+    if (isContainer && onDropOnContainer && !isEmulatorMode && !isTabOrderMode) {
       onDropOnContainer(e, node.id);
     }
   };
@@ -73,6 +74,13 @@ export const CanvasNodeItem = memo<CanvasNodeItemProps>(({
           return;
         }
         e.stopPropagation();
+
+        if (isTabOrderMode) {
+          // Tab Order Click Mode - sequential focus index assignment
+          assignTabIndex(node.id);
+          return;
+        }
+
         if (spacePressed) return;
         onSelect(node.id, e.shiftKey);
         if (!node.properties.locked) {
@@ -80,13 +88,13 @@ export const CanvasNodeItem = memo<CanvasNodeItemProps>(({
         }
       }}
       onDoubleClick={e => {
-        if (!isEmulatorMode && onDoubleClick) {
+        if (!isEmulatorMode && !isTabOrderMode && onDoubleClick) {
           e.stopPropagation();
           onDoubleClick(node.id, e);
         }
       }}
       onContextMenu={e => {
-        if (!isEmulatorMode && onContextMenu) {
+        if (!isEmulatorMode && !isTabOrderMode && onContextMenu) {
           e.preventDefault();
           e.stopPropagation();
           onSelect(node.id, e.shiftKey);
@@ -98,6 +106,8 @@ export const CanvasNodeItem = memo<CanvasNodeItemProps>(({
       className={`group transition-shadow ${
         isEmulatorMode
           ? ''
+          : isTabOrderMode
+          ? 'cursor-crosshair ring-2 ring-blue-500/70'
           : isSelected
           ? 'ring-2 ring-blue-500 shadow-md ring-offset-1 ring-offset-transparent'
           : activePeer
@@ -105,6 +115,23 @@ export const CanvasNodeItem = memo<CanvasNodeItemProps>(({
           : 'hover:outline-1 hover:outline-dashed hover:outline-blue-400'
       }`}
     >
+      {/* 1. Tab Order Interactive Badge: [ 0 ], [ 1 ], [ 2 ] */}
+      {isTabOrderMode && node.type !== 'Form' && (
+        <div
+          className={`absolute -top-3 -left-2 z-[60] px-1.5 py-0.5 rounded text-[11px] font-bold font-mono shadow-md border pointer-events-none select-none flex items-center gap-1 ${
+            node.properties.tabIndex !== undefined
+              ? 'bg-blue-600 border-blue-300 text-white ring-2 ring-blue-400/50'
+              : 'bg-zinc-800 border-zinc-600 text-zinc-400'
+          }`}
+        >
+          <span>{node.properties.tabIndex !== undefined ? node.properties.tabIndex : '?'}</span>
+        </div>
+      )}
+
+      {/* 2. Smart Tags / Action Glyphs: [ ► ] */}
+      {!isEmulatorMode && !isTabOrderMode && (
+        <SmartTagActionGlyph node={node} isSelected={isSelected} />
+      )}
       {/* Peer selection halo badge */}
       {!isEmulatorMode && activePeer && !isSelected && (
         <div

@@ -101,13 +101,33 @@ export interface DesignerStoreState {
   dpr: number;
 
   // Panels & Modals State
-  activeLeftTab: 'toolbox' | 'tree';
+  activeLeftTab: 'solution' | 'toolbox' | 'tree' | 'outline';
   activeRightTab: 'properties' | 'events' | 'code' | 'history';
   codeDockOpen: boolean;
   liveRunOpen: boolean;
   importModalOpen: boolean;
   orphanedHandlers: OrphanedEventHandler[];
   rawCustomLines: string[];
+
+  // Microsoft VS Standards State
+  isTabOrderMode: boolean;
+  nextTabOrderIndex: number;
+  setTabOrderMode: (active: boolean) => void;
+  setNextTabOrderIndex: (index: number) => void;
+  assignTabIndex: (nodeId: string) => void;
+  resetTabOrder: () => void;
+
+  errorListOpen: boolean;
+  setErrorListOpen: (open: boolean) => void;
+
+  solutionBuildConfiguration: 'Debug' | 'Release';
+  solutionBuildPlatform: 'Any CPU' | 'x64' | 'x86' | 'ARM64';
+  setSolutionBuildConfiguration: (config: 'Debug' | 'Release') => void;
+  setSolutionBuildPlatform: (platform: 'Any CPU' | 'x64' | 'x86' | 'ARM64') => void;
+
+  bringNodeToFront: (nodeId: string) => void;
+  sendNodeToBack: (nodeId: string) => void;
+  moveNodeOrder: (nodeId: string, direction: 'up' | 'down') => void;
 
   // Live Emulator, Sandbox & DevOS Desktop Mode
   appMode: 'designer' | 'emulator' | 'devos';
@@ -158,7 +178,7 @@ export interface DesignerStoreState {
   setActiveDpiMode: (mode: DpiMode) => void;
   setCursorPos: (pos: { screenX: number; screenY: number; formX: number | null; formY: number | null }) => void;
   setFps: (fps: number) => void;
-  setActiveLeftTab: (tab: 'toolbox' | 'tree') => void;
+  setActiveLeftTab: (tab: 'solution' | 'toolbox' | 'tree' | 'outline') => void;
   setActiveRightTab: (tab: 'properties' | 'events' | 'code' | 'history') => void;
   setCodeDockOpen: (open: boolean) => void;
   setLiveRunOpen: (open: boolean) => void;
@@ -224,6 +244,13 @@ export const useDesignerStore = create<DesignerStoreState>((set, get) => ({
   liveRunOpen: false,
   importModalOpen: false,
   toolboxDragState: null,
+
+  // Microsoft VS Standards State
+  isTabOrderMode: false,
+  nextTabOrderIndex: 0,
+  errorListOpen: false,
+  solutionBuildConfiguration: 'Debug',
+  solutionBuildPlatform: 'Any CPU',
 
   appMode: 'designer',
   consoleLogs: [
@@ -1241,6 +1268,113 @@ export const useDesignerStore = create<DesignerStoreState>((set, get) => ({
   setCodeDockOpen: (open) => set({ codeDockOpen: open }),
   setLiveRunOpen: (open) => set({ liveRunOpen: open }),
   setImportModalOpen: (open) => set({ importModalOpen: open }),
+
+  // Microsoft VS Standards Methods
+  setTabOrderMode: (active: boolean) => set({ isTabOrderMode: active, nextTabOrderIndex: 0 }),
+  setNextTabOrderIndex: (index: number) => set({ nextTabOrderIndex: index }),
+  assignTabIndex: (nodeId: string) => {
+    set(state => {
+      const node = state.nodes[nodeId];
+      if (!node || node.type === 'Form') return state;
+      const currentIndex = state.nextTabOrderIndex;
+      const updatedProps = { ...node.properties, tabIndex: currentIndex };
+      const updatedNodes = {
+        ...state.nodes,
+        [nodeId]: {
+          ...node,
+          properties: updatedProps,
+        },
+      };
+      return {
+        nodes: updatedNodes,
+        nextTabOrderIndex: currentIndex + 1,
+        hasUnsavedChanges: true,
+      };
+    });
+  },
+  resetTabOrder: () => {
+    set(state => {
+      const updatedNodes = { ...state.nodes };
+      Object.keys(updatedNodes).forEach(id => {
+        if (updatedNodes[id].type !== 'Form') {
+          updatedNodes[id] = {
+            ...updatedNodes[id],
+            properties: { ...updatedNodes[id].properties, tabIndex: undefined },
+          };
+        }
+      });
+      return {
+        nodes: updatedNodes,
+        nextTabOrderIndex: 0,
+        hasUnsavedChanges: true,
+      };
+    });
+  },
+
+  setErrorListOpen: (open: boolean) => set({ errorListOpen: open }),
+
+  setSolutionBuildConfiguration: (config) => set({ solutionBuildConfiguration: config }),
+  setSolutionBuildPlatform: (platform) => set({ solutionBuildPlatform: platform }),
+
+  bringNodeToFront: (nodeId: string) => {
+    set(state => {
+      const node = state.nodes[nodeId];
+      if (!node || !node.parentId || !state.nodes[node.parentId]) return state;
+      const parent = state.nodes[node.parentId];
+      const curIndex = parent.childrenIds.indexOf(nodeId);
+      if (curIndex === -1 || curIndex === parent.childrenIds.length - 1) return state;
+      const nextChildren = parent.childrenIds.filter(id => id !== nodeId);
+      nextChildren.push(nodeId);
+      return {
+        nodes: {
+          ...state.nodes,
+          [node.parentId]: { ...parent, childrenIds: nextChildren },
+        },
+        hasUnsavedChanges: true,
+      };
+    });
+  },
+
+  sendNodeToBack: (nodeId: string) => {
+    set(state => {
+      const node = state.nodes[nodeId];
+      if (!node || !node.parentId || !state.nodes[node.parentId]) return state;
+      const parent = state.nodes[node.parentId];
+      const curIndex = parent.childrenIds.indexOf(nodeId);
+      if (curIndex === -1 || curIndex === 0) return state;
+      const nextChildren = parent.childrenIds.filter(id => id !== nodeId);
+      nextChildren.unshift(nodeId);
+      return {
+        nodes: {
+          ...state.nodes,
+          [node.parentId]: { ...parent, childrenIds: nextChildren },
+        },
+        hasUnsavedChanges: true,
+      };
+    });
+  },
+
+  moveNodeOrder: (nodeId: string, direction: 'up' | 'down') => {
+    set(state => {
+      const node = state.nodes[nodeId];
+      if (!node || !node.parentId || !state.nodes[node.parentId]) return state;
+      const parent = state.nodes[node.parentId];
+      const curIndex = parent.childrenIds.indexOf(nodeId);
+      if (curIndex === -1) return state;
+      const targetIndex = direction === 'up' ? curIndex - 1 : curIndex + 1;
+      if (targetIndex < 0 || targetIndex >= parent.childrenIds.length) return state;
+      const nextChildren = [...parent.childrenIds];
+      const [removed] = nextChildren.splice(curIndex, 1);
+      nextChildren.splice(targetIndex, 0, removed);
+      return {
+        nodes: {
+          ...state.nodes,
+          [node.parentId]: { ...parent, childrenIds: nextChildren },
+        },
+        hasUnsavedChanges: true,
+      };
+    });
+  },
   setToolboxDragState: (status) => set(state => ({
     toolboxDragState: status ? { ...(state.toolboxDragState || { isDragging: false, controlType: null, targetContainerId: null, targetContainerName: null, futureName: null, localPos: null, screenPos: null }), ...status } : null,
   })),

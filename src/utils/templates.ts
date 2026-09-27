@@ -229,6 +229,113 @@ export const createLoginTemplate = (): DesignerProjectState => {
   };
 };
 
+export const createCalculatorTemplate = (): DesignerProjectState => {
+  const rootId = 'form_calculator';
+  const displayId = 'txtDisplay';
+
+  const btnSpecs = [
+    { id: 'btnC', text: 'C', x: 20, y: 80, w: 60, h: 42, color: '#EF4444' },
+    { id: 'btnCE', text: 'CE', x: 90, y: 80, w: 60, h: 42, color: '#F97316' },
+    { id: 'btnBack', text: '⌫', x: 160, y: 80, w: 60, h: 42, color: '#64748B' },
+    { id: 'btnDiv', text: '/', x: 230, y: 80, w: 60, h: 42, color: '#3B82F6' },
+
+    { id: 'btn7', text: '7', x: 20, y: 130, w: 60, h: 42, color: '#1E293B' },
+    { id: 'btn8', text: '8', x: 90, y: 130, w: 60, h: 42, color: '#1E293B' },
+    { id: 'btn9', text: '9', x: 160, y: 130, w: 60, h: 42, color: '#1E293B' },
+    { id: 'btnMul', text: '*', x: 230, y: 130, w: 60, h: 42, color: '#3B82F6' },
+
+    { id: 'btn4', text: '4', x: 20, y: 180, w: 60, h: 42, color: '#1E293B' },
+    { id: 'btn5', text: '5', x: 90, y: 180, w: 60, h: 42, color: '#1E293B' },
+    { id: 'btn6', text: '6', x: 160, y: 180, w: 60, h: 42, color: '#1E293B' },
+    { id: 'btnSub', text: '-', x: 230, y: 180, w: 60, h: 42, color: '#3B82F6' },
+
+    { id: 'btn1', text: '1', x: 20, y: 230, w: 60, h: 42, color: '#1E293B' },
+    { id: 'btn2', text: '2', x: 90, y: 230, w: 60, h: 42, color: '#1E293B' },
+    { id: 'btn3', text: '3', x: 160, y: 230, w: 60, h: 42, color: '#1E293B' },
+    { id: 'btnAdd', text: '+', x: 230, y: 230, w: 60, h: 42, color: '#3B82F6' },
+
+    { id: 'btnNeg', text: '±', x: 20, y: 280, w: 60, h: 42, color: '#1E293B' },
+    { id: 'btn0', text: '0', x: 90, y: 280, w: 60, h: 42, color: '#1E293B' },
+    { id: 'btnDot', text: '.', x: 160, y: 280, w: 60, h: 42, color: '#1E293B' },
+    { id: 'btnEq', text: '=', x: 230, y: 280, w: 60, h: 42, color: '#10B981' },
+  ];
+
+  const childrenIds = [displayId, ...btnSpecs.map(b => b.id)];
+
+  const nodes: Record<string, DesignerNode> = {
+    [rootId]: {
+      id: rootId,
+      type: 'Form',
+      bounds: { x: 0, y: 0, width: 330, height: 380 },
+      properties: {
+        name: 'CalculatorForm',
+        text: 'Калькулятор v1.0',
+        enabled: true,
+        visible: true,
+        backColor: '#0F172A',
+        foreColor: '#F8FAFC',
+        fontFamily: 'Segoe UI',
+        fontSize: 10,
+      },
+      events: {
+        Load: 'CalculatorForm_Load',
+      },
+      parentId: null,
+      childrenIds,
+    },
+    [displayId]: {
+      id: displayId,
+      type: 'TextBox',
+      bounds: { x: 20, y: 20, width: 270, height: 44 },
+      properties: {
+        name: 'txtDisplay',
+        text: '0',
+        enabled: true,
+        visible: true,
+        backColor: '#1E293B',
+        foreColor: '#38BDF8',
+        fontFamily: 'Consolas',
+        fontSize: 18,
+      },
+      events: {},
+      parentId: rootId,
+      childrenIds: [],
+    },
+  };
+
+  btnSpecs.forEach(b => {
+    nodes[b.id] = {
+      id: b.id,
+      type: 'Button',
+      bounds: { x: b.x, y: b.y, width: b.w, height: b.h },
+      properties: {
+        name: b.id,
+        text: b.text,
+        enabled: true,
+        visible: true,
+        backColor: b.color,
+        foreColor: '#FFFFFF',
+        fontFamily: 'Segoe UI',
+        fontSize: 11,
+      },
+      events: {
+        Click: `${b.id}_Click`,
+      },
+      parentId: rootId,
+      childrenIds: [],
+    };
+  });
+
+  return {
+    version: '1.0.0',
+    projectName: 'CalculatorApp',
+    rootFormId: rootId,
+    nodes,
+    selectedNodeIds: [displayId],
+    targetFramework: 'WinForms',
+  };
+};
+
 export const createDashboardTemplate = (): DesignerProjectState => {
   const rootId = 'form_dashboard';
 

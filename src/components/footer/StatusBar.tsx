@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useDesigner } from '../../context/DesignerContext';
 import { getStorageUsageInfo } from '../../utils/storage';
 import { StorageManagerModal } from '../modals/StorageManagerModal';
+import { ProjectASTLinter } from '../../utils/astLinter';
 import {
   Database,
   Cpu,
@@ -36,7 +37,17 @@ export const StatusBar: React.FC = () => {
     toolboxDragState,
     snapTelemetry,
     p2pSessionCode,
+    errorListOpen,
+    setErrorListOpen,
   } = useDesigner();
+
+  const lintIssues = useMemo(() => {
+    return ProjectASTLinter.validateProject(project);
+  }, [project]);
+
+  const errorCount = lintIssues.filter(i => i.severity === 'error').length;
+  const warningCount = lintIssues.filter(i => i.severity === 'warning').length;
+  const messageCount = lintIssues.filter(i => i.severity === 'info').length;
 
   const { sizeKb, nodeCount } = getStorageUsageInfo(project);
   const allForms = getAllForms();
@@ -99,7 +110,27 @@ export const StatusBar: React.FC = () => {
         <>
           {/* Left Telemetry Items */}
           <div className="flex items-center gap-3.5 truncate">
-        {/* Multi-Form Count: [Холст: 2 формы] */}
+            {/* Error List Button Pill (Visual Studio Standard) */}
+            <button
+              type="button"
+              onClick={() => setErrorListOpen(!errorListOpen)}
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded cursor-pointer transition-colors border text-[10px] ${
+                errorListOpen
+                  ? 'bg-zinc-800 border-zinc-700 text-white shadow-xs'
+                  : 'hover:bg-zinc-800 border-transparent text-zinc-300'
+              }`}
+              title="Открыть Список ошибок и предупреждений (Error List)"
+            >
+              <span className="flex items-center gap-1.5 font-bold">
+                <span className={errorCount > 0 ? 'text-red-400' : 'text-zinc-500'}>❌ {errorCount}</span>
+                <span className={warningCount > 0 ? 'text-amber-400' : 'text-zinc-500'}>⚠️ {warningCount}</span>
+                <span className={messageCount > 0 ? 'text-blue-400' : 'text-zinc-500'}>ℹ️ {messageCount}</span>
+              </span>
+            </button>
+
+            <span className="text-zinc-700">|</span>
+
+            {/* Multi-Form Count: [Холст: 2 формы] */}
         <div className="flex items-center gap-1 text-zinc-300 font-semibold" title={`Всего форм на холсте: ${allForms.length}`}>
           <AppWindow className="w-3 h-3 text-blue-400" />
           <span>Холст: [<strong className="text-zinc-100">{allForms.length} {allForms.length === 1 ? 'форма' : allForms.length < 5 ? 'формы' : 'форм'}</strong>]</span>

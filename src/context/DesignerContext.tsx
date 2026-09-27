@@ -40,7 +40,7 @@ interface DesignerContextType {
   fps: number;
   dpi: number;
   dpr: number;
-  activeLeftTab: 'toolbox' | 'tree';
+  activeLeftTab: 'solution' | 'toolbox' | 'tree' | 'outline';
   activeRightTab: 'properties' | 'events' | 'code' | 'history';
   codeDockOpen: boolean;
   liveRunOpen: boolean;
@@ -116,7 +116,7 @@ interface DesignerContextType {
   setActiveDpiMode: (mode: DpiMode) => void;
   setCursorPos: (pos: { screenX: number; screenY: number; formX: number | null; formY: number | null }) => void;
   setFps: (fps: number) => void;
-  setActiveLeftTab: (tab: 'toolbox' | 'tree') => void;
+  setActiveLeftTab: (tab: 'solution' | 'toolbox' | 'tree' | 'outline') => void;
   setActiveRightTab: (tab: 'properties' | 'events' | 'code' | 'history') => void;
   setCodeDockOpen: (open: boolean) => void;
   setLiveRunOpen: (open: boolean) => void;
@@ -124,6 +124,26 @@ interface DesignerContextType {
   alignSelectedNodes: (alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' | 'sameWidth' | 'sameHeight' | 'bringForward' | 'sendBackward') => void;
   nudgeSelectedNodes: (dx: number, dy: number) => void;
   duplicateSelectedNodes: () => void;
+
+  // Microsoft VS Standards State & Methods
+  isTabOrderMode: boolean;
+  nextTabOrderIndex: number;
+  setTabOrderMode: (active: boolean) => void;
+  setNextTabOrderIndex: (index: number) => void;
+  assignTabIndex: (nodeId: string) => void;
+  resetTabOrder: () => void;
+
+  errorListOpen: boolean;
+  setErrorListOpen: (open: boolean) => void;
+
+  solutionBuildConfiguration: 'Debug' | 'Release';
+  solutionBuildPlatform: 'Any CPU' | 'x64' | 'x86' | 'ARM64';
+  setSolutionBuildConfiguration: (config: 'Debug' | 'Release') => void;
+  setSolutionBuildPlatform: (platform: 'Any CPU' | 'x64' | 'x86' | 'ARM64') => void;
+
+  bringNodeToFront: (nodeId: string) => void;
+  sendNodeToBack: (nodeId: string) => void;
+  moveNodeOrder: (nodeId: string, direction: 'up' | 'down') => void;
 
   // P2P Multiplayer Extension
   p2pSessionCode: string | null;
@@ -386,6 +406,26 @@ export const DesignerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     alignSelectedNodes: store.alignSelectedNodes,
     nudgeSelectedNodes: store.nudgeSelectedNodes,
     duplicateSelectedNodes: store.duplicateSelectedNodes,
+
+    // Microsoft VS Standards Values & Actions
+    isTabOrderMode: store.isTabOrderMode,
+    nextTabOrderIndex: store.nextTabOrderIndex,
+    setTabOrderMode: store.setTabOrderMode,
+    setNextTabOrderIndex: store.setNextTabOrderIndex,
+    assignTabIndex: store.assignTabIndex,
+    resetTabOrder: store.resetTabOrder,
+
+    errorListOpen: store.errorListOpen,
+    setErrorListOpen: store.setErrorListOpen,
+
+    solutionBuildConfiguration: store.solutionBuildConfiguration,
+    solutionBuildPlatform: store.solutionBuildPlatform,
+    setSolutionBuildConfiguration: store.setSolutionBuildConfiguration,
+    setSolutionBuildPlatform: store.setSolutionBuildPlatform,
+
+    bringNodeToFront: store.bringNodeToFront,
+    sendNodeToBack: store.sendNodeToBack,
+    moveNodeOrder: store.moveNodeOrder,
 
     // P2P Multiplayer Values
     p2pSessionCode,

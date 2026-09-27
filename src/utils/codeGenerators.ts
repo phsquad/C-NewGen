@@ -93,6 +93,9 @@ export const generateDesignerCs = (project: DesignerProjectState, targetFormId?:
       if (n.properties.visible === false) {
         lines.push(`            ${varName}.Visible = false;`);
       }
+      if (n.properties.tabIndex !== undefined) {
+        lines.push(`            ${varName}.TabIndex = ${n.properties.tabIndex};`);
+      }
 
       if (n.type === 'Button') {
         lines.push(`            ${varName}.UseVisualStyleBackColor = ${n.properties.useVisualStyleBackColor !== false ? 'true' : 'false'};`);

@@ -69,6 +69,10 @@ export const DesignSurface: React.FC = () => {
     p2pSessionCode,
     p2pPeers,
     p2pInstance,
+    isTabOrderMode,
+    nextTabOrderIndex,
+    setTabOrderMode,
+    resetTabOrder,
   } = useDesigner();
 
   const [contextMenu, setContextMenu] = useState<{
@@ -182,6 +186,12 @@ export const DesignSurface: React.FC = () => {
   // Spacebar pan toggle + Keyboard Shortcuts Navigation & Operations
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Escape: Exit Tab Order mode
+      if (e.code === 'Escape' && isTabOrderMode) {
+        setTabOrderMode(false);
+        return;
+      }
+
       // 1. Spacebar pan toggle
       if (e.code === 'Space' && !e.repeat) {
         const target = e.target as HTMLElement;
@@ -1063,6 +1073,48 @@ export const DesignSurface: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Tab Order Mode Floating Banner */}
+      {isTabOrderMode && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-zinc-900/95 backdrop-blur-md border border-blue-500/80 rounded-xl px-4 py-2 shadow-2xl flex items-center gap-3 text-xs animate-in slide-in-from-top-4 duration-150 select-none">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2.5 w-2.5 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+            </span>
+            <span className="font-bold text-white font-mono">🔢 РЕЖИМ TAB ORDER:</span>
+            <span className="text-zinc-300">Кликайте по контролам для задания очередности.</span>
+          </div>
+
+          <div className="h-4 w-px bg-zinc-700" />
+
+          <div className="flex items-center gap-1.5 font-mono">
+            <span className="text-zinc-400">Следующий:</span>
+            <span className="px-2 py-0.5 rounded bg-blue-600 text-white font-bold text-xs shadow-xs">
+              [ {nextTabOrderIndex} ]
+            </span>
+          </div>
+
+          <div className="h-4 w-px bg-zinc-700" />
+
+          <button
+            type="button"
+            onClick={resetTabOrder}
+            className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors cursor-pointer text-[11px]"
+            title="Сбросить счетчик в 0 и очистить TabIndex"
+          >
+            Сбросить (0)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTabOrderMode(false)}
+            className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors cursor-pointer text-[11px]"
+          >
+            Готово (Esc)
+          </button>
+        </div>
+      )}
 
       {/* Marquee Selection Rectangle */}
       {marquee && (

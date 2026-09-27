@@ -51,7 +51,10 @@ import {
   Trash2,
   Monitor,
   HelpCircle,
-  Menu
+  Menu,
+  FolderTree,
+  Box,
+  AlertCircle,
 } from 'lucide-react';
 import { HistoryJournalPanel } from '../history/HistoryJournalPanel';
 import { ProjectManagerModal } from '../projectManager/ProjectManagerModal';
@@ -99,6 +102,11 @@ export const TopHeaderBar: React.FC = () => {
     updateMultipleNodeBounds,
     activeFormId,
     gridStep,
+    setActiveLeftTab,
+    isTabOrderMode,
+    setTabOrderMode,
+    errorListOpen,
+    setErrorListOpen,
   } = useDesigner();
 
   // Dropdown menus states
@@ -341,7 +349,73 @@ export const TopHeaderBar: React.FC = () => {
             Вид ▾
           </button>
           {activeMenu === 'view' && (
-            <div className="absolute top-full left-0 mt-1 w-48 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl py-1 z-50 text-[11px] font-mono">
+            <div className="absolute top-full left-0 mt-1 w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl py-1.5 z-50 text-[11px] font-mono">
+              {/* 1. Solution Explorer */}
+              <button
+                onClick={() => { setActiveLeftTab('solution'); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-300"
+              >
+                <span className="flex items-center gap-2">
+                  <FolderTree className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Обозреватель решений</span>
+                </span>
+                <span className="text-[10px] text-zinc-500 font-sans">Ctrl+Alt+L</span>
+              </button>
+
+              {/* 2. Toolbox */}
+              <button
+                onClick={() => { setActiveLeftTab('toolbox'); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-300"
+              >
+                <span className="flex items-center gap-2">
+                  <Box className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Палитра компонентов (Toolbox)</span>
+                </span>
+                <span className="text-[10px] text-zinc-500 font-sans">Ctrl+Alt+X</span>
+              </button>
+
+              {/* 3. Document Outline */}
+              <button
+                onClick={() => { setActiveLeftTab('tree'); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-300"
+              >
+                <span className="flex items-center gap-2">
+                  <Layers className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Структура документа (Outline)</span>
+                </span>
+                <span className="text-[10px] text-zinc-500 font-sans">Ctrl+Alt+T</span>
+              </button>
+
+              <div className="my-1 border-t border-zinc-800" />
+
+              {/* 4. Tab Order Mode */}
+              <button
+                onClick={() => { setTabOrderMode(!isTabOrderMode); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-300"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="text-sm">🔢</span>
+                  <span className="font-semibold text-white">Порядок перехода (Tab Order)</span>
+                </span>
+                <span className={`text-[9px] px-1.5 py-0.2 rounded font-sans ${isTabOrderMode ? 'bg-blue-600 text-white' : 'text-zinc-500'}`}>
+                  {isTabOrderMode ? 'ВКЛ' : 'ВЫКЛ'}
+                </span>
+              </button>
+
+              {/* 5. Error List */}
+              <button
+                onClick={() => { setErrorListOpen(!errorListOpen); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-300"
+              >
+                <span className="flex items-center gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+                  <span>Список ошибок (Error List)</span>
+                </span>
+                <span className="text-[10px] text-zinc-500 font-sans">Ctrl+\, E</span>
+              </button>
+
+              <div className="my-1 border-t border-zinc-800" />
+
               <button
                 onClick={() => { setShowGrid(!showGrid); setActiveMenu(null); }}
                 className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-300"
@@ -369,7 +443,6 @@ export const TopHeaderBar: React.FC = () => {
                 <Maximize2 className="w-3.5 h-3.5 text-purple-400" />
                 <span>Вписать в экран (1:1)</span>
               </button>
-              <div className="my-1 border-t border-zinc-800" />
               <button
                 onClick={() => { setCodeDockOpen(!codeDockOpen); setActiveMenu(null); }}
                 className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-300"
@@ -483,6 +556,41 @@ export const TopHeaderBar: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Кнопка Tab Order (Стандарт Microsoft) */}
+        <button
+          type="button"
+          onClick={() => setTabOrderMode(!isTabOrderMode)}
+          className={`px-2.5 py-1 border rounded-lg flex items-center gap-1.5 cursor-pointer font-bold text-[11px] transition-all shadow-xs ${
+            isTabOrderMode
+              ? 'bg-blue-600 border-blue-400 text-white ring-2 ring-blue-400/40 animate-pulse'
+              : 'bg-zinc-900 hover:bg-zinc-850 border-zinc-800 text-zinc-300 hover:text-white'
+          }`}
+          title="Режим расстановки порядка перехода Tab Order (по клику на контролы)"
+        >
+          <span>🔢</span>
+          <span>Tab Order</span>
+        </button>
+
+        {/* Кнопка Error List (Стандарт Microsoft) */}
+        <button
+          type="button"
+          onClick={() => setErrorListOpen(!errorListOpen)}
+          className={`px-2.5 py-1 border rounded-lg flex items-center gap-1.5 cursor-pointer font-bold text-[11px] transition-all shadow-xs ${
+            errorListOpen
+              ? 'bg-zinc-800 border-zinc-700 text-white ring-1 ring-zinc-500/40'
+              : 'bg-zinc-900 hover:bg-zinc-850 border-zinc-800 text-zinc-300 hover:text-white'
+          }`}
+          title="Список ошибок (Error List & Diagnostic Panel)"
+        >
+          <AlertCircle className={`w-3.5 h-3.5 ${lintErrorCount > 0 ? 'text-red-400' : 'text-zinc-500'}`} />
+          <span>Ошибки</span>
+          {lintErrorCount > 0 && (
+            <span className="px-1.5 py-0.2 bg-red-600 text-white rounded-full text-[9px] font-mono">
+              {lintErrorCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* ПРАВАЯ ЧАСТЬ: Действия и Экспорт */}

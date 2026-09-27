@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useDesigner } from '../../context/DesignerContext';
 import {
+  createEmptyProject,
+  createLoginTemplate,
+  createCalculatorTemplate,
+  createDashboardTemplate,
+} from '../../utils/templates';
+import { DesignerProjectState } from '../../types/ast';
+import {
   Sparkles,
   X,
   Code2,
@@ -26,7 +33,7 @@ interface GenesisWizardModalProps {
 }
 
 export const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose }) => {
-  const { project, setProjectState, applyQuickTemplate } = useDesigner();
+  const { project, setProjectState } = useDesigner();
 
   // Compute a default project name like Проект_26_09_2026
   const getFormattedDate = () => {
@@ -64,21 +71,31 @@ export const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, 
   if (!isOpen) return null;
 
   const handleCreateProject = () => {
-    // 1. Update project metadata
-    const nextState = JSON.parse(JSON.stringify(project));
+    let nextState: DesignerProjectState;
+
+    switch (selectedPreset) {
+      case 'login':
+        nextState = createLoginTemplate();
+        break;
+      case 'calc':
+        nextState = createCalculatorTemplate();
+        break;
+      case 'dashboard':
+        nextState = createDashboardTemplate();
+        break;
+      case 'empty':
+      default:
+        nextState = createEmptyProject();
+        break;
+    }
+
     nextState.projectName = projectName.trim() || 'MyWinFormsApp';
     nextState.namespace = namespace.trim() || 'MyUniversityApp';
     nextState.author = author.trim() || 'Разработчик';
-    nextState.description = description.trim() || 'Проект визульно спроектирован в NextGen Designer';
+    nextState.description = description.trim() || 'Проект визуально спроектирован в NextGen Designer';
     nextState.polyglotTarget = polyglotTarget;
 
     setProjectState(nextState);
-
-    // 2. Apply chosen template preset
-    if (selectedPreset !== 'empty') {
-      applyQuickTemplate(selectedPreset as any);
-    }
-
     onClose();
   };
 

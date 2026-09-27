@@ -53,17 +53,15 @@ export const LiveRunModal: React.FC = () => {
     message: string;
   } | null>(null);
 
-  // Reset/Initialize live sandbox whenever modal opens or project changes
+  // Reset/Initialize live sandbox only when modal transitions to open
   useEffect(() => {
     if (liveRunOpen) {
-      setLiveNodes(JSON.parse(JSON.stringify(project.nodes)));
+      const initialNodes = JSON.parse(JSON.stringify(project.nodes)) as Record<string, DesignerNode>;
+      setLiveNodes(initialNodes);
       setActiveFormId(project.rootFormId);
-      templateEngine.resetCalcState(project.nodes['txtDisplay']?.properties.text || '0');
+      templateEngine.resetCalcState(initialNodes['txtDisplay']?.properties.text || '0');
 
-      const formName = project.nodes[project.rootFormId]?.properties.name || 'Form1';
-      addConsoleLog('System', `[Process Started] Запущен интерактивный процесс: ${project.projectName || 'WinFormsApp'}.exe`);
-      addConsoleLog('System', `[Form Initialize] Загрузка формы: ${formName}.InitializeComponent()`);
-
+      const formName = initialNodes[project.rootFormId]?.properties.name || 'Form1';
       setLogs([
         {
           id: Math.random().toString(),
@@ -76,21 +74,14 @@ export const LiveRunModal: React.FC = () => {
         },
       ]);
     }
-  }, [liveRunOpen, project]);
-
-  // Sync activeFormId if rootFormId changes
-  useEffect(() => {
-    if (liveRunOpen && !liveNodes[activeFormId]) {
-      setActiveFormId(project.rootFormId);
-    }
-  }, [liveRunOpen, activeFormId, liveNodes, project.rootFormId]);
+  }, [liveRunOpen]); // Only runs when liveRunOpen changes!
 
   const allForms = useMemo(() => {
     const forms = Object.values(liveNodes).filter(n => n.type === 'Form');
-    return forms.length > 0 ? forms : [liveNodes[project.rootFormId]].filter(Boolean);
-  }, [liveNodes, project.rootFormId]);
+    return forms.length > 0 ? forms : [liveNodes[project.rootFormId] || project.nodes[project.rootFormId]].filter(Boolean);
+  }, [liveNodes, project.rootFormId, project.nodes]);
 
-  const currentForm = liveNodes[activeFormId] || liveNodes[project.rootFormId];
+  const currentForm = liveNodes[activeFormId] || liveNodes[project.rootFormId] || project.nodes[project.rootFormId];
 
   if (!liveRunOpen || !currentForm) return null;
 

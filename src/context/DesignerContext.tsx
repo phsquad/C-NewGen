@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import {
   DesignerProjectState,
   DesignerNode,
@@ -185,7 +185,28 @@ const DesignerContext = createContext<DesignerContextType | null>(null);
 export const DesignerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const store = useDesignerStore();
 
-  const project = store.getProject();
+  const project = useMemo(() => {
+    return store.getProject();
+  }, [
+    store.version,
+    store.projectName,
+    store.rootFormId,
+    store.activeFormId,
+    store.formZOrder,
+    store.gridStep,
+    store.snapToGrid,
+    store.globalTheme,
+    store.showGrid,
+    store.nodes,
+    store.selectedNodeIds,
+    store.targetFramework,
+    store.rawCustomLines,
+    store.orphanedHandlers,
+    store.wires,
+    store.morphicMode,
+    store.xrayMode,
+    store.showWiring,
+  ]);
   const selectedNode = store.getSelectedNode();
   const selectedNodes = store.getSelectedNodes();
   const wasmStatus = store.getWasmStatus();

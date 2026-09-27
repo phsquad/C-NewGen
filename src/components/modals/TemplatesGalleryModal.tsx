@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { useDesigner } from '../../context/DesignerContext';
-import { TEMPLATES_CATALOG, TemplateDefinition, instantiateTemplateProject } from '../../utils/templatesCatalog';
+import { useDesignerStore } from '../../store/designerStore';
+import { TEMPLATES_CATALOG, TemplateDefinition } from '../../utils/templatesCatalog';
+import { createProjectFromTemplate } from '../../utils/templateEngine';
 import {
   Search,
   Sparkles,
@@ -50,7 +51,7 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({
   onClose,
   onSelectTemplate,
 }) => {
-  const { setProjectState, addConsoleLog, commitTransaction, setAppMode } = useDesigner();
+  const store = useDesignerStore();
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateDefinition | null>(null);
@@ -80,11 +81,8 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({
     if (onSelectTemplate) {
       onSelectTemplate(tpl.id);
     } else {
-      const newState = instantiateTemplateProject(tpl.id);
-      setProjectState(newState);
-      addConsoleLog('System', `Создан проект по шаблону #${tpl.num}: "${tpl.title}" (.NET 8 WinForms).`);
-      commitTransaction(`Создание проекта: ${tpl.title}`);
-      setAppMode('designer');
+      // Calls createProjectFromTemplate which generates AST, C#, SQL, and updates Zustand state
+      createProjectFromTemplate(tpl.id, true);
     }
     onClose();
   };
@@ -104,11 +102,11 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({
                   Галерея 100 Готовых Шаблонов Приложений
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px] font-bold border border-blue-500/30">
-                  .NET 8 / C#
+                  .NET 8 / C# / SQLite
                 </span>
               </div>
               <p className="text-[11px] text-zinc-400">
-                10 категорий · 100% рабочий C# код · Базы данных SQLite · Мгновенный запуск
+                10 категорий · 100% рабочий C# код · СУБД SQLite · Мгновенный запуск
               </p>
             </div>
           </div>
@@ -354,7 +352,7 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({
         {/* 5. Footer */}
         <div className="h-10 bg-[#16161e] border-t border-zinc-800 px-6 flex justify-between items-center text-[11px] text-zinc-500 shrink-0">
           <span>Найдено шаблонов: <strong className="text-zinc-300">{filteredTemplates.length} из 100</strong></span>
-          <span>Двойной клик по карточке — мгновенный запуск</span>
+          <span>Клик по карточке — развернуть проект, C# код и SQLite базу</span>
         </div>
       </div>
     </div>

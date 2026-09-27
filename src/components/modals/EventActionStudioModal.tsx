@@ -268,7 +268,7 @@ export const EventActionStudioModal: React.FC<EventActionStudioModalProps> = ({
   nodeId,
   initialCode,
 }) => {
-  const { project, nodes, updateProject, addConsoleLog, setMessageBoxModal, setActiveRightTab } = useDesigner();
+  const { project, nodes, setProjectState, addConsoleLog, setMessageBoxModal, setActiveRightTab } = useDesigner();
 
   const defaultMethodBody = useMemo(() => {
     return (
@@ -350,7 +350,7 @@ export const EventActionStudioModal: React.FC<EventActionStudioModalProps> = ({
       .map((line) => line.replace(/\t/g, '    '))
       .join('\n');
     handleCodeChange(formatted);
-    addConsoleLog('EventStudio', `Код события ${controlName}_${eventName} отформатирован.`);
+    addConsoleLog('System', `Код события ${controlName}_${eventName} отформатирован.`);
   };
 
   // Insert generated snippet into code
@@ -385,7 +385,7 @@ export const EventActionStudioModal: React.FC<EventActionStudioModalProps> = ({
     setTimeout(() => setFlashInserted(false), 1200);
 
     addConsoleLog(
-      'EventStudio',
+      'System',
       `Действие "${action.name}" успешно вставлено в обработчик ${controlName}_${eventName}.`
     );
   };
@@ -404,11 +404,11 @@ export const EventActionStudioModal: React.FC<EventActionStudioModalProps> = ({
       ...project,
       rawCustomLines: [...customLines, `// Custom handler for ${controlName}_${eventName}:\n${code}`],
     };
-    updateProject(updatedProject);
+    setProjectState(updatedProject);
 
     setSavedSuccess(true);
     addConsoleLog(
-      'EventStudio',
+      'System',
       `Обработчик события ${controlName}_${eventName} успешно скомпилирован и сохранен в проекте!`
     );
 
@@ -724,7 +724,7 @@ export const EventActionStudioModal: React.FC<EventActionStudioModalProps> = ({
               <button
                 onClick={() => {
                   onClose();
-                  setActiveRightTab('actions');
+                  setActiveRightTab('events');
                 }}
                 className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
               >

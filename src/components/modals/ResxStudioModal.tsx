@@ -27,7 +27,7 @@ interface ResxStudioModalProps {
 }
 
 export const ResxStudioModal: React.FC<ResxStudioModalProps> = ({ isOpen, onClose }) => {
-  const { project, updateProject, addConsoleLog } = useDesigner();
+  const { project, setProjectState, addConsoleLog } = useDesigner();
 
   const [resources, setResources] = useState<ResxResourceEntry[]>(() =>
     ResxLocalizationEngine.extractFromProject(project)
@@ -102,8 +102,9 @@ export const ResxStudioModal: React.FC<ResxStudioModalProps> = ({ isOpen, onClos
       resources,
       culture
     );
-    updateProject({ ...project, nodes: updatedNodes });
+    setProjectState({ ...project, nodes: updatedNodes });
     addConsoleLog(
+      'System',
       `[Resx Studio] Языковой пакет '${culture}' успешно применен к элементам формы на холсте!`
     );
     setPreviewApplied(true);

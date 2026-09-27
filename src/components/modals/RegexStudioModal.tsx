@@ -393,7 +393,7 @@ export const RegexStudioModal: React.FC<RegexStudioModalProps> = ({ isOpen, onCl
           <div className="flex items-center gap-3">
             <button
               onClick={() => {
-                addConsoleLog(`[Regex Studio] Шаблон '${pattern}' скопирован для использования в C#.`);
+                addConsoleLog('System', `[Regex Studio] Шаблон '${pattern}' скопирован для использования в C#.`);
                 handleCopy(analysis.csharpSnippet);
               }}
               className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-lg shadow-purple-600/20"

@@ -1318,7 +1318,6 @@ export const DesignSurface: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              const name = nodes[contextMenu.nodeId]?.properties.name || 'btnCalculate';
               setRefactorModalOpen(true);
             }}
             className="w-full px-3 py-1.5 text-left hover:bg-indigo-600/20 text-indigo-300 hover:text-indigo-200 flex items-center justify-between cursor-pointer font-semibold"
@@ -1329,7 +1328,7 @@ export const DesignSurface: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setActiveRightTab('actions')}
+            onClick={() => setActiveRightTab('events')}
             className="w-full px-3 py-1.5 text-left hover:bg-purple-600/20 text-purple-300 hover:text-purple-200 flex items-center justify-between cursor-pointer"
           >
             <span>🪄 No-Code Action Flow...</span>
@@ -1375,7 +1374,7 @@ export const DesignSurface: React.FC = () => {
                 updateNodeBounds(contextMenu.nodeId, nodes[contextMenu.nodeId].bounds);
                 // toggle lock
                 nodes[contextMenu.nodeId].properties.locked = !isLocked;
-                addConsoleLog('DesignSurface', `Элемент ${nodes[contextMenu.nodeId].properties.name} ${!isLocked ? 'заблокирован от сдвига' : 'разблокирован'}.`);
+                addConsoleLog('System', `Элемент ${nodes[contextMenu.nodeId].properties.name} ${!isLocked ? 'заблокирован от сдвига' : 'разблокирован'}.`);
               }
             }}
             className="w-full px-3 py-1.5 text-left hover:bg-zinc-800 flex items-center justify-between cursor-pointer"

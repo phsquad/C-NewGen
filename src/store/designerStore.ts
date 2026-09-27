@@ -1555,8 +1555,6 @@ export const useDesignerStore = create<DesignerStoreState>((set, get) => ({
 
   clearConsoleLogs: () => set({ consoleLogs: [] }),
 
-  setMessageBoxModal: (modal) => set({ messageBoxModal: modal }),
-
   // Form Focus Arbiter & Z-Index Virtualization (Pravka 2.6)
   bringFormToFront: (formId: string) => {
     const state = get();

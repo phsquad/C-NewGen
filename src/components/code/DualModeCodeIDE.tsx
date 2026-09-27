@@ -81,7 +81,7 @@ export const DualModeCodeIDE: React.FC = () => {
     activeFormId,
     getAllForms,
     setActiveFormId,
-    updateProject,
+    setProjectState,
   } = useDesigner();
 
   // Mode: 'docked' (quick-dock at canvas bottom) or 'standalone' (fullscreen DevOS window)
@@ -366,7 +366,7 @@ export const DualModeCodeIDE: React.FC = () => {
     const updated = fix.apply(currentFileContent);
     handleTextChange(updated);
     setQuickFixMenuOpen(false);
-    addConsoleLog('Roslyn Fix', `Применено авто-исправление: ${fix.title} (правило ${fix.codeRule})`);
+    addConsoleLog('System', `Применено авто-исправление: ${fix.title} (правило ${fix.codeRule})`);
   };
 
   // Terminal commands execution simulation

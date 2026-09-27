@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useDesigner } from '../../context/DesignerContext';
 import { WindowDragController, WindowPosition, WindowSize } from '../../utils/WindowDragController';
 import { StorageManager } from '../../utils/StorageManager';
@@ -1334,7 +1334,7 @@ if __name__ == "__main__":
 // =========================================================================
 
 const DevOSResxWindowContent: React.FC = () => {
-  const { project, updateProject, addConsoleLog } = useDesigner();
+  const { project, setProjectState, addConsoleLog } = useDesigner();
   const [resources, setResources] = useState<ResxResourceEntry[]>(() =>
     ResxLocalizationEngine.extractFromProject(project)
   );
@@ -1346,8 +1346,8 @@ const DevOSResxWindowContent: React.FC = () => {
       resources,
       culture
     );
-    updateProject({ ...project, nodes: updatedNodes });
-    addConsoleLog('Resx Studio', `Локаль '${culture}' применена к элементам на холсте.`);
+    setProjectState({ ...project, nodes: updatedNodes });
+    addConsoleLog('System', `Локаль '${culture}' применена к элементам на холсте.`);
   };
 
   return (

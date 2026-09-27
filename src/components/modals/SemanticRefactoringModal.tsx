@@ -29,7 +29,7 @@ export const SemanticRefactoringModal: React.FC<SemanticRefactoringModalProps> =
   initialSymbol = 'btnCalculate',
   initialMode = 'rename',
 }) => {
-  const { project, updateProject, addConsoleLog, activeFormId } = useDesigner();
+  const { project, setProjectState, addConsoleLog } = useDesigner();
 
   const [refactorMode, setRefactorMode] = useState<'rename' | 'extract' | 'encapsulate'>(initialMode);
 
@@ -96,9 +96,10 @@ export const SemanticRefactoringModal: React.FC<SemanticRefactoringModalProps> =
     if (!symbolName.trim() || !newSymbolName.trim()) return;
 
     const updated = RoslynRefactoringEngine.applyRename(project, symbolName, newSymbolName, selectedIds);
-    updateProject(updated);
+    setProjectState(updated);
 
     addConsoleLog(
+      'System',
       `[Roslyn Refactoring] Семантическое переименование '${symbolName}' ➔ '${newSymbolName}' успешно завершено (обновлено ${selectedIds.size} AST-узлов за 0ms).`
     );
     setRenameSuccess(true);
@@ -116,7 +117,7 @@ export const SemanticRefactoringModal: React.FC<SemanticRefactoringModalProps> =
       methodParams
     );
     setExtractedOutput(result);
-    addConsoleLog(`[Roslyn Refactoring] Метод '${newMethodName}' успешно извлечен (Extract Method Ctrl+R, Ctrl+M).`);
+    addConsoleLog('System', `[Roslyn Refactoring] Метод '${newMethodName}' успешно извлечен (Extract Method Ctrl+R, Ctrl+M).`);
   };
 
   return (
@@ -464,7 +465,7 @@ export const SemanticRefactoringModal: React.FC<SemanticRefactoringModalProps> =
             {refactorMode === 'encapsulate' && (
               <button
                 onClick={() => {
-                  addConsoleLog(`[Roslyn Refactoring] Поле '${fieldName}' успешно инкапсулировано в свойство '${propName}'.`);
+                  addConsoleLog('System', `[Roslyn Refactoring] Поле '${fieldName}' успешно инкапсулировано в свойство '${propName}'.`);
                   onClose();
                 }}
                 className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-2 cursor-pointer"

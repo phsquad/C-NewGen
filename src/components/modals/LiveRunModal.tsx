@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useDesigner } from '../../context/DesignerContext';
 import { ControlRenderer } from '../canvas/ControlRenderer';
 import { DesignerNode } from '../../types/ast';
@@ -7,16 +7,13 @@ import {
   Minus,
   Square,
   X,
-  Play,
   Terminal,
   Trash2,
   AppWindow,
   RotateCcw,
-  Sparkles,
   CheckCircle2,
   AlertTriangle,
   Info,
-  Download,
   Layers,
 } from 'lucide-react';
 
@@ -30,60 +27,65 @@ interface EventLogEntry {
   details?: string;
 }
 
-export const LiveRunModal: React.FC = () => {
+const LiveRunModalDialog: React.FC = () => {
   const {
     project,
-    liveRunOpen,
     setLiveRunOpen,
     addConsoleLog,
-    getAllForms,
   } = useDesigner();
 
-  // Active form being simulated
-  const [activeFormId, setActiveFormId] = useState<string>(project.rootFormId);
+  // Initialize live sandbox state synchronously from project.nodes
+  const [liveNodes, setLiveNodes] = useState<Record<string, DesignerNode>>(() => {
+    try {
+      const cloned = JSON.parse(JSON.stringify(project.nodes || {})) as Record<string, DesignerNode>;
+      templateEngine.resetCalcState(cloned['txtDisplay']?.properties?.text || '0');
+      return cloned;
+    } catch {
+      return { ...project.nodes };
+    }
+  });
 
-  // Live sandbox state of all nodes (isolated from designer canvas)
-  const [liveNodes, setLiveNodes] = useState<Record<string, DesignerNode>>({});
+  // Active form being simulated
+  const [activeFormId, setActiveFormId] = useState<string>(() => {
+    if (project.rootFormId && liveNodes[project.rootFormId]) {
+      return project.rootFormId;
+    }
+    const formNode = Object.values(liveNodes).find(n => n.type === 'Form');
+    return formNode ? formNode.id : project.rootFormId || 'Form1';
+  });
 
   const [activeTabByControl, setActiveTabByControl] = useState<Record<string, number>>({});
-  const [logs, setLogs] = useState<EventLogEntry[]>([]);
+  
+  const [logs, setLogs] = useState<EventLogEntry[]>(() => {
+    const rootForm = liveNodes[project.rootFormId] || Object.values(liveNodes).find(n => n.type === 'Form');
+    const formName = rootForm?.properties?.name || 'Form1';
+    return [
+      {
+        id: 'init_load_' + Date.now(),
+        time: new Date().toTimeString().split(' ')[0],
+        controlName: formName,
+        eventName: 'Load',
+        handlerName: `${formName}_Load`,
+        message: `⚡️ [FormLoad] Форма «${formName}» успешно инициализирована и запущена в интерактивной песочнице`,
+        details: `Application.Run(new ${formName}());`,
+      },
+    ];
+  });
+
   const [activeToast, setActiveToast] = useState<{
     type: 'success' | 'info' | 'warning' | 'error';
     title: string;
     message: string;
   } | null>(null);
 
-  // Reset/Initialize live sandbox only when modal transitions to open
-  useEffect(() => {
-    if (liveRunOpen) {
-      const initialNodes = JSON.parse(JSON.stringify(project.nodes)) as Record<string, DesignerNode>;
-      setLiveNodes(initialNodes);
-      setActiveFormId(project.rootFormId);
-      templateEngine.resetCalcState(initialNodes['txtDisplay']?.properties.text || '0');
-
-      const formName = initialNodes[project.rootFormId]?.properties.name || 'Form1';
-      setLogs([
-        {
-          id: Math.random().toString(),
-          time: new Date().toTimeString().split(' ')[0],
-          controlName: formName,
-          eventName: 'Load',
-          handlerName: `${formName}_Load`,
-          message: `⚡️ [FormLoad] Форма «${formName}» успешно инициализирована и отображена`,
-          details: `Application.Run(new ${formName}());`,
-        },
-      ]);
-    }
-  }, [liveRunOpen]); // Only runs when liveRunOpen changes!
-
   const allForms = useMemo(() => {
-    const forms = Object.values(liveNodes).filter(n => n.type === 'Form');
-    return forms.length > 0 ? forms : [liveNodes[project.rootFormId] || project.nodes[project.rootFormId]].filter(Boolean);
+    const forms = Object.values(liveNodes).filter(n => n && n.type === 'Form');
+    if (forms.length > 0) return forms;
+    const fallback = liveNodes[project.rootFormId] || project.nodes?.[project.rootFormId];
+    return fallback ? [fallback] : [];
   }, [liveNodes, project.rootFormId, project.nodes]);
 
-  const currentForm = liveNodes[activeFormId] || liveNodes[project.rootFormId] || project.nodes[project.rootFormId];
-
-  if (!liveRunOpen || !currentForm) return null;
+  const currentForm = liveNodes[activeFormId] || liveNodes[project.rootFormId] || allForms[0];
 
   // Handle two-way property changes from inputs
   const handlePropertyChange = (nodeId: string, propName: string, val: any) => {
@@ -155,7 +157,7 @@ export const LiveRunModal: React.FC = () => {
       addConsoleLog('Event', `⚡️ ${result.logEntry.handlerName}(): ${result.logEntry.message}`);
       setLogs(prev => [
         {
-          id: Math.random().toString(),
+          id: Math.random().toString(36).substr(2, 9),
           time: timeStr,
           controlName: result.logEntry!.controlName,
           eventName: result.logEntry!.eventName,
@@ -169,12 +171,18 @@ export const LiveRunModal: React.FC = () => {
   };
 
   const handleRestart = () => {
-    setLiveNodes(JSON.parse(JSON.stringify(project.nodes)));
-    setActiveFormId(project.rootFormId);
-    templateEngine.resetCalcState('0');
+    try {
+      const freshNodes = JSON.parse(JSON.stringify(project.nodes || {})) as Record<string, DesignerNode>;
+      setLiveNodes(freshNodes);
+      setActiveFormId(project.rootFormId);
+      templateEngine.resetCalcState(freshNodes['txtDisplay']?.properties?.text || '0');
+    } catch {
+      setLiveNodes({ ...project.nodes });
+    }
+
     setLogs(prev => [
       {
-        id: Math.random().toString(),
+        id: Math.random().toString(36).substr(2, 9),
         time: new Date().toTimeString().split(' ')[0],
         controlName: 'System',
         eventName: 'Restart',
@@ -185,14 +193,18 @@ export const LiveRunModal: React.FC = () => {
     ]);
   };
 
-  const renderChildren = (parentId: string) => {
+  const renderChildren = (parentId: string, visited = new Set<string>()) => {
+    if (visited.has(parentId)) return null;
+    visited.add(parentId);
+
     const parent = liveNodes[parentId];
-    if (!parent?.childrenIds) return null;
+    if (!parent?.childrenIds || !Array.isArray(parent.childrenIds)) return null;
 
     return parent.childrenIds.map(childId => {
       const node = liveNodes[childId];
-      if (!node || node.properties.visible === false) return null;
+      if (!node || node.properties?.visible === false) return null;
 
+      const bounds = node.bounds || { x: 0, y: 0, width: 100, height: 30 };
       const isContainer = ['Panel', 'GroupBox', 'TabControl'].includes(node.type);
 
       return (
@@ -200,10 +212,10 @@ export const LiveRunModal: React.FC = () => {
           key={node.id}
           style={{
             position: 'absolute',
-            left: `${node.bounds.x}px`,
-            top: `${node.bounds.y}px`,
-            width: `${node.bounds.width}px`,
-            height: `${node.bounds.height}px`,
+            left: `${bounds.x}px`,
+            top: `${bounds.y}px`,
+            width: `${bounds.width}px`,
+            height: `${bounds.height}px`,
           }}
         >
           <ControlRenderer
@@ -218,7 +230,7 @@ export const LiveRunModal: React.FC = () => {
           {isContainer && (
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
               <div className="relative w-full h-full pointer-events-auto">
-                {renderChildren(node.id)}
+                {renderChildren(node.id, new Set(visited))}
               </div>
             </div>
           )}
@@ -226,6 +238,9 @@ export const LiveRunModal: React.FC = () => {
       );
     });
   };
+
+  const formBounds = currentForm?.bounds || { width: 680, height: 480 };
+  const formTitle = currentForm?.properties?.text || currentForm?.properties?.name || 'Form1';
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
@@ -249,7 +264,7 @@ export const LiveRunModal: React.FC = () => {
                 >
                   {allForms.map(f => (
                     <option key={f.id} value={f.id} className="bg-zinc-800">
-                      {f.properties.text || f.properties.name}
+                      {f.properties?.text || f.properties?.name || f.id}
                     </option>
                   ))}
                 </select>
@@ -305,48 +320,52 @@ export const LiveRunModal: React.FC = () => {
               </div>
             )}
 
-            <div
-              style={{
-                width: `${currentForm.bounds.width}px`,
-                minHeight: `${currentForm.bounds.height}px`,
-                backgroundColor: currentForm.properties.backColor || '#FFFFFF',
-              }}
-              className="relative rounded-t-lg shadow-2xl border border-zinc-400/80 dark:border-zinc-600 transition-all overflow-hidden"
-            >
-              {/* Form Window Titlebar */}
-              <div className="h-8 px-3 bg-zinc-200 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 flex items-center justify-between select-none">
-                <div className="flex items-center gap-2 text-xs font-medium text-zinc-800 dark:text-zinc-200">
-                  <AppWindow className="w-3.5 h-3.5 text-blue-500" />
-                  <span className="truncate">{currentForm.properties.text || currentForm.properties.name}</span>
-                </div>
-                <div className="flex items-center gap-1 text-zinc-500">
-                  <div className="w-5 h-5 flex items-center justify-center rounded hover:bg-zinc-300 dark:hover:bg-zinc-700">
-                    <Minus className="w-2.5 h-2.5" />
-                  </div>
-                  <div className="w-5 h-5 flex items-center justify-center rounded hover:bg-zinc-300 dark:hover:bg-zinc-700">
-                    <Square className="w-2 h-2" />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setLiveRunOpen(false)}
-                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white transition-colors"
-                  >
-                    <X className="w-2.5 h-2.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Form Client Area */}
+            {currentForm ? (
               <div
                 style={{
-                  width: `${currentForm.bounds.width}px`,
-                  height: `${currentForm.bounds.height}px`,
+                  width: `${formBounds.width}px`,
+                  minHeight: `${formBounds.height}px`,
+                  backgroundColor: currentForm.properties?.backColor || '#FFFFFF',
                 }}
-                className="relative overflow-hidden"
+                className="relative rounded-t-lg shadow-2xl border border-zinc-400/80 dark:border-zinc-600 transition-all overflow-hidden"
               >
-                {renderChildren(currentForm.id)}
+                {/* Form Window Titlebar */}
+                <div className="h-8 px-3 bg-zinc-200 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 flex items-center justify-between select-none">
+                  <div className="flex items-center gap-2 text-xs font-medium text-zinc-800 dark:text-zinc-200">
+                    <AppWindow className="w-3.5 h-3.5 text-blue-500" />
+                    <span className="truncate">{formTitle}</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-zinc-500">
+                    <div className="w-5 h-5 flex items-center justify-center rounded hover:bg-zinc-300 dark:hover:bg-zinc-700">
+                      <Minus className="w-2.5 h-2.5" />
+                    </div>
+                    <div className="w-5 h-5 flex items-center justify-center rounded hover:bg-zinc-300 dark:hover:bg-zinc-700">
+                      <Square className="w-2 h-2" />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLiveRunOpen(false)}
+                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-red-500 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Form Client Area */}
+                <div
+                  style={{
+                    width: `${formBounds.width}px`,
+                    height: `${formBounds.height}px`,
+                  }}
+                  className="relative overflow-hidden"
+                >
+                  {renderChildren(currentForm.id)}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="text-zinc-500 text-sm">Форма не найдена</div>
+            )}
           </div>
 
           {/* Real-time Diagnostics & Event Output Console */}
@@ -413,4 +432,10 @@ export const LiveRunModal: React.FC = () => {
       </div>
     </div>
   );
+};
+
+export const LiveRunModal: React.FC = () => {
+  const { liveRunOpen, project } = useDesigner();
+  if (!liveRunOpen) return null;
+  return <LiveRunModalDialog key={project.rootFormId + '_' + (liveRunOpen ? 'open' : 'closed')} />;
 };

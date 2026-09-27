@@ -117,10 +117,15 @@ const DesignerApp: React.FC = () => {
     document.title = `${pName}${author} — NextGen Polyglot Studio`;
   }, [project.projectName, project.author]);
 
-  // Register offline ServiceWorker
+  // Register offline ServiceWorker and global events
   useEffect(() => {
     registerServiceWorker();
-  }, []);
+    const handleOpenLiveRun = () => setLiveRunOpen(true);
+    window.addEventListener('open-live-run', handleOpenLiveRun);
+    return () => {
+      window.removeEventListener('open-live-run', handleOpenLiveRun);
+    };
+  }, [setLiveRunOpen]);
 
   // Global Keyboard Shortcuts
   useEffect(() => {

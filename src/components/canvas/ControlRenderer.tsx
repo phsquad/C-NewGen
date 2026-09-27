@@ -29,7 +29,10 @@ export const ControlRenderer: React.FC<ControlRendererProps> = ({
   activeTab = 0,
   onTabChange,
 }) => {
-  const { type, properties, events } = node;
+  if (!node) return null;
+  const type = node.type || 'Panel';
+  const properties = node.properties || ({} as any);
+  const events = node.events || {};
 
   const fontStyle: React.CSSProperties = {
     fontFamily: properties.fontFamily || 'Segoe UI, sans-serif',
@@ -46,14 +49,14 @@ export const ControlRenderer: React.FC<ControlRendererProps> = ({
     if (isInteractive) {
       e.stopPropagation();
       if (events?.Click) {
-        onEventTrigger?.('Click', events.Click, properties.name);
+        onEventTrigger?.('Click', events.Click, properties.name || node.id);
       }
     }
   };
 
   const handleMouseEnter = () => {
     if (isInteractive && events?.MouseEnter) {
-      onEventTrigger?.('MouseEnter', events.MouseEnter, properties.name);
+      onEventTrigger?.('MouseEnter', events.MouseEnter, properties.name || node.id);
     }
   };
 

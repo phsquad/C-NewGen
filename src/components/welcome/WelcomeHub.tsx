@@ -197,7 +197,7 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
   const handleExportProject = (savedProj: SavedProject, e: React.MouseEvent) => {
     e.stopPropagation();
     const jsonStr = JSON.stringify(savedProj.state, null, 2);
-    downloadFile(jsonStr, `${savedProj.name}.devosproj`, 'application/json');
+    downloadFile(`${savedProj.name}.devosproj`, jsonStr, 'application/json');
     showToast(`Файл «${savedProj.name}.devosproj» скачан`);
   };
 

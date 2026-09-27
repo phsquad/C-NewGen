@@ -97,6 +97,8 @@ const DesignerApp: React.FC = () => {
             setShareToast(`⚡️ [✔ Проект восстановлен: «${proj.name}»]`);
             setTimeout(() => setShareToast(null), 4000);
             setAppMode('designer');
+          } else {
+            setAppMode('welcome');
           }
         }).catch(() => {
           setAppMode('welcome');
@@ -106,7 +108,7 @@ const DesignerApp: React.FC = () => {
       // First visit or user clicked "Exit to Hub"
       setAppMode('welcome');
     }
-  }, [setProjectState, setAppMode]);
+  }, []); // Run ONCE on mount to prevent React error #185 infinite loop
 
   // Dynamic Document Title Sync (Правка 16.1)
   useEffect(() => {

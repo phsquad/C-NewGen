@@ -58,6 +58,7 @@ export const RightSidebar: React.FC = () => {
     activeRightTab,
     setActiveRightTab,
     setCodeDockOpen,
+    setEventStudioModal,
     historyJournal,
     redoJournal,
     jumpToHistoryStep,
@@ -1653,10 +1654,18 @@ export const RightSidebar: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setCodeDockOpen(true)}
-              className="w-full py-1.5 px-3 bg-blue-600 hover:bg-blue-500 rounded text-xs font-semibold text-white flex items-center justify-center gap-2 transition-colors shadow-md cursor-pointer"
+              onClick={() => {
+                const evtName = activeEventSnippetName || (type === 'Form' ? 'Load' : 'Click');
+                setEventStudioModal({
+                  isOpen: true,
+                  nodeId: id,
+                  controlName: properties.name,
+                  eventName: evtName,
+                });
+              }}
+              className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-500 rounded text-xs font-bold text-white flex items-center justify-center gap-2 transition-colors shadow-md shadow-indigo-600/20 cursor-pointer"
             >
-              <span>Открыть редактор кода (Form1.cs)</span>
+              <span>⚡️ Открыть 2-in-1 Event Studio ({properties.name})</span>
             </button>
           </div>
         </div>

@@ -88,6 +88,8 @@ interface DesignerContextType {
   clearConsoleLogs: () => void;
   messageBoxModal: { isOpen: boolean; title: string; text: string } | null;
   setMessageBoxModal: (modal: { isOpen: boolean; title: string; text: string } | null) => void;
+  eventStudioModal: { isOpen: boolean; nodeId?: string; controlName?: string; eventName?: string; initialCode?: string } | null;
+  setEventStudioModal: (modal: { isOpen: boolean; nodeId?: string; controlName?: string; eventName?: string; initialCode?: string } | null) => void;
 
   // Methods
   selectNode: (id: string, multi?: boolean) => void;
@@ -402,6 +404,8 @@ export const DesignerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     clearConsoleLogs: store.clearConsoleLogs,
     messageBoxModal: store.messageBoxModal,
     setMessageBoxModal: store.setMessageBoxModal,
+    eventStudioModal: store.eventStudioModal,
+    setEventStudioModal: store.setEventStudioModal,
 
     activeFormId: store.activeFormId,
     formZOrder: store.formZOrder,

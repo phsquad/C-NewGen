@@ -169,6 +169,8 @@ export interface DesignerStoreState {
   clearConsoleLogs: () => void;
   messageBoxModal: { isOpen: boolean; title: string; text: string } | null;
   setMessageBoxModal: (modal: { isOpen: boolean; title: string; text: string } | null) => void;
+  eventStudioModal: { isOpen: boolean; nodeId?: string; controlName?: string; eventName?: string; initialCode?: string } | null;
+  setEventStudioModal: (modal: { isOpen: boolean; nodeId?: string; controlName?: string; eventName?: string; initialCode?: string } | null) => void;
 
   // Computed & Getters
   getProject: () => DesignerProjectState;
@@ -309,6 +311,11 @@ export const useDesignerStore = create<DesignerStoreState>((set, get) => ({
     },
   ],
   messageBoxModal: null,
+  setMessageBoxModal: (modal: { isOpen: boolean; title: string; text: string } | null) =>
+    set({ messageBoxModal: modal }),
+  eventStudioModal: null,
+  setEventStudioModal: (modal: { isOpen: boolean; nodeId?: string; controlName?: string; eventName?: string; initialCode?: string } | null) =>
+    set({ eventStudioModal: modal }),
 
   orphanedHandlers: initialProject.orphanedHandlers || [],
   rawCustomLines: initialProject.rawCustomLines || [],

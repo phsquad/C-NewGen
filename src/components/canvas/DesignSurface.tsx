@@ -13,6 +13,7 @@ import { useDesignerStore } from '../../store/designerStore';
 import { SemanticRefactoringModal } from '../modals/SemanticRefactoringModal';
 import { CodeMetricsStudioModal } from '../modals/CodeMetricsStudioModal';
 import { ResxStudioModal } from '../modals/ResxStudioModal';
+import { EventActionStudioModal } from '../modals/EventActionStudioModal';
 
 export const DesignSurface: React.FC = () => {
   const {
@@ -87,6 +88,8 @@ export const DesignSurface: React.FC = () => {
     morphicMode,
     setMorphicMode,
     toggleMorphicMode,
+    eventStudioModal,
+    setEventStudioModal,
   } = useDesigner();
 
   const [contextMenu, setContextMenu] = useState<{
@@ -943,7 +946,7 @@ export const DesignSurface: React.FC = () => {
     }
   }, [addConsoleLog, setMessageBoxModal]);
 
-  // Double-Click on control: Auto-wire default primary event & switch to Events tab
+  // Double-Click on control: Auto-wire default primary event & open Event & Action Studio
   const handleNodeDoubleClick = useCallback((nodeId: string) => {
     const node = nodes[nodeId];
     if (!node) return;
@@ -951,14 +954,19 @@ export const DesignSurface: React.FC = () => {
     selectNode(nodeId);
     const def = getDefaultEventForControl(node.type);
     const existingHandler = node.events?.[def.eventName];
+    const handlerName = existingHandler || `${node.properties.name}_${def.eventName}`;
 
     if (!existingHandler) {
-      const handlerName = `${node.properties.name}_${def.eventName}`;
       updateNodeEvents(nodeId, { [def.eventName]: handlerName });
     }
 
-    setActiveRightTab('events');
-  }, [nodes, selectNode, updateNodeEvents, setActiveRightTab]);
+    setEventStudioModal({
+      isOpen: true,
+      nodeId,
+      controlName: node.properties.name,
+      eventName: def.eventName,
+    });
+  }, [nodes, selectNode, updateNodeEvents, setEventStudioModal]);
 
   // Render tree of controls inside a container
   const renderControlsInside = (parentId: string): React.ReactNode => {
@@ -1421,6 +1429,16 @@ export const DesignSurface: React.FC = () => {
         isOpen={resxModalOpen}
         onClose={() => setResxModalOpen(false)}
       />
+      {eventStudioModal && (
+        <EventActionStudioModal
+          isOpen={eventStudioModal.isOpen}
+          onClose={() => setEventStudioModal(null)}
+          nodeId={eventStudioModal.nodeId}
+          controlName={eventStudioModal.controlName}
+          eventName={eventStudioModal.eventName}
+          initialCode={eventStudioModal.initialCode}
+        />
+      )}
 
       {/* 🟢 РЕДАКТОР СОВМЕСТНОЙ РАБОТЫ: КУРСОРЫ НАПАРНИКОВ */}
       {p2pPeers.map(peer => (

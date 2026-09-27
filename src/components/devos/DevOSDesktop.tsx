@@ -49,6 +49,10 @@ import { DevOSUMLStudio } from './DevOSUMLStudio';
 import { DevOSGitStudio } from './DevOSGitStudio';
 import { DevOSNetworkHub } from './DevOSNetworkHub';
 import { WindowErrorBoundary } from './WindowErrorBoundary';
+import { ResxLocalizationEngine, SUPPORTED_LOCALES, ResxResourceEntry } from '../../utils/ResxLocalizationEngine';
+import { RegexPatternStudioEngine, REGEX_PRESETS } from '../../utils/RegexPatternStudioEngine';
+import { RoslynCodeMetrics } from '../../utils/RoslynCodeMetrics';
+import { generateCodeBehindCs } from '../../utils/codeGenerators';
 
 export type WallpaperTheme = 'win11' | 'cyberpunk' | 'ubuntu' | 'vs_code' | 'retro';
 
@@ -63,7 +67,7 @@ export interface DevOSWindow {
   isMinimized: boolean;
   isMaximized: boolean;
   zIndex: number;
-  type: 'designer' | 'csharp' | 'python' | 'terminal' | 'projects' | 'settings' | 'database' | 'nuget' | 'uml' | 'git' | 'network';
+  type: 'designer' | 'csharp' | 'python' | 'terminal' | 'projects' | 'settings' | 'database' | 'nuget' | 'uml' | 'git' | 'network' | 'resx' | 'regex' | 'metrics' | 'refactor';
 }
 
 interface DevOSDesktopProps {
@@ -292,6 +296,21 @@ export const DevOSDesktop: React.FC<DevOSDesktopProps> = ({ onExitDevOS }) => {
       icon = <Globe className="w-4 h-4 text-sky-400" />;
       width = 760;
       height = 540;
+    } else if (type === 'resx') {
+      title = '🌍 Roslyn .resx Resource & Localization Studio';
+      icon = <Globe className="w-4 h-4 text-blue-400" />;
+      width = 960;
+      height = 600;
+    } else if (type === 'regex') {
+      title = '🧪 Roslyn Regex & Pattern Studio (FSM Analyzer)';
+      icon = <Sparkles className="w-4 h-4 text-purple-400" />;
+      width = 960;
+      height = 600;
+    } else if (type === 'metrics') {
+      title = '📊 Roslyn Cyclomatic Complexity & Code Debt Studio';
+      icon = <Activity className="w-4 h-4 text-emerald-400" />;
+      width = 960;
+      height = 600;
     }
 
     const newWin: DevOSWindow = {
@@ -846,6 +865,51 @@ export const DevOSDesktop: React.FC<DevOSDesktopProps> = ({ onExitDevOS }) => {
                 <div className="text-[10px] text-zinc-400">P2P / LAN Сигналинг</div>
               </div>
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                openAppWindow('resx');
+                setStartMenuOpen(false);
+              }}
+              className="flex items-center gap-2.5 p-2.5 bg-zinc-800/60 hover:bg-zinc-800 rounded-xl border border-zinc-700/50 text-left transition-all cursor-pointer"
+            >
+              <Globe className="w-5 h-5 text-blue-400" />
+              <div>
+                <div className="font-bold text-white text-xs">.resx Студия</div>
+                <div className="text-[10px] text-zinc-400">Мультиязычность</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                openAppWindow('regex');
+                setStartMenuOpen(false);
+              }}
+              className="flex items-center gap-2.5 p-2.5 bg-zinc-800/60 hover:bg-zinc-800 rounded-xl border border-zinc-700/50 text-left transition-all cursor-pointer"
+            >
+              <Sparkles className="w-5 h-5 text-purple-400" />
+              <div>
+                <div className="font-bold text-white text-xs">Regex Студия</div>
+                <div className="text-[10px] text-zinc-400">FSM & Паттерны C#</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                openAppWindow('metrics');
+                setStartMenuOpen(false);
+              }}
+              className="flex items-center gap-2.5 p-2.5 bg-zinc-800/60 hover:bg-zinc-800 rounded-xl border border-zinc-700/50 text-left transition-all cursor-pointer"
+            >
+              <Activity className="w-5 h-5 text-emerald-400" />
+              <div>
+                <div className="font-bold text-white text-xs">Метрики $V(G)$</div>
+                <div className="text-[10px] text-zinc-400">McCabe / Техдолг</div>
+              </div>
+            </button>
           </div>
 
           <div className="p-3 bg-zinc-950/80 border border-zinc-800 rounded-xl flex items-center justify-between">
@@ -1214,6 +1278,18 @@ if __name__ == "__main__":
 
           {windowState.type === 'network' && <DevOSNetworkHub />}
 
+          {windowState.type === 'resx' && (
+            <DevOSResxWindowContent />
+          )}
+
+          {windowState.type === 'regex' && (
+            <DevOSRegexWindowContent />
+          )}
+
+          {windowState.type === 'metrics' && (
+            <DevOSMetricsWindowContent />
+          )}
+
           {windowState.type === 'projects' && (
             <div className="p-5 text-xs space-y-3">
               <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center justify-between">
@@ -1249,6 +1325,180 @@ if __name__ == "__main__":
           <div className="w-2 h-2 border-r-2 border-b-2 border-zinc-400" />
         </div>
       )}
+    </div>
+  );
+};
+
+// =========================================================================
+// DevOS Pro-IDE Embedded Window Components
+// =========================================================================
+
+const DevOSResxWindowContent: React.FC = () => {
+  const { project, updateProject, addConsoleLog } = useDesigner();
+  const [resources, setResources] = useState<ResxResourceEntry[]>(() =>
+    ResxLocalizationEngine.extractFromProject(project)
+  );
+  const [activeCulture, setActiveCulture] = useState<string>('ru-RU');
+
+  const handleApplyToCanvas = (culture: string) => {
+    const updatedNodes = ResxLocalizationEngine.applyLocalizationToNodes(
+      project.nodes,
+      resources,
+      culture
+    );
+    updateProject({ ...project, nodes: updatedNodes });
+    addConsoleLog('Resx Studio', `Локаль '${culture}' применена к элементам на холсте.`);
+  };
+
+  return (
+    <div className="w-full h-full flex flex-col bg-zinc-950 p-4 text-xs font-sans text-zinc-200 overflow-y-auto space-y-3">
+      <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+        <div className="flex items-center gap-2">
+          <Globe className="w-4 h-4 text-blue-400" />
+          <span className="font-bold text-white">Редактор строк .resx ({resources.length} ключей)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-zinc-400 text-[11px]">Локаль предпросмотра:</span>
+          <select
+            value={activeCulture}
+            onChange={(e) => {
+              setActiveCulture(e.target.value);
+              handleApplyToCanvas(e.target.value);
+            }}
+            className="bg-zinc-900 border border-zinc-700 text-xs text-white rounded px-2 py-1"
+          >
+            {SUPPORTED_LOCALES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.flag} {l.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-zinc-800/80 text-zinc-400 uppercase text-[10px]">
+            <tr>
+              <th className="p-2.5">Ключ ресурса</th>
+              <th className="p-2.5">Default (en-US)</th>
+              <th className="p-2.5">Русский (ru-RU)</th>
+              <th className="p-2.5">Deutsch (de-DE)</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-800/80">
+            {resources.map((res) => (
+              <tr key={res.id} className="hover:bg-zinc-800/40">
+                <td className="p-2.5 font-mono font-bold text-blue-300">{res.key}</td>
+                <td className="p-2 text-zinc-300">{res.values['default'] || ''}</td>
+                <td className="p-2 text-emerald-300">{res.values['ru-RU'] || ''}</td>
+                <td className="p-2 text-amber-300">{res.values['de-DE'] || ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const DevOSRegexWindowContent: React.FC = () => {
+  const [pattern, setPattern] = useState('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
+  const [inputSample, setInputSample] = useState('alice@company.com, invalid-email@, lead@dev.org');
+  const analysis = RegexPatternStudioEngine.evaluate(pattern, inputSample, 'g', '[EMAIL]');
+
+  return (
+    <div className="w-full h-full flex flex-col bg-zinc-950 p-4 text-xs font-sans text-zinc-200 overflow-y-auto space-y-3">
+      <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-purple-400" />
+          <span className="font-bold text-white">Visual Regex & Pattern Studio</span>
+        </div>
+        <span className="text-[11px] font-mono text-purple-300">
+          Совпадений: {analysis.matchCount} ({analysis.executionTimeMs}ms)
+        </span>
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-[11px] text-zinc-400 font-semibold">Регулярное выражение (Pattern):</label>
+        <input
+          type="text"
+          value={pattern}
+          onChange={(e) => setPattern(e.target.value)}
+          className="w-full bg-zinc-900 border border-purple-500/40 rounded px-3 py-1.5 text-xs font-mono text-purple-200 focus:outline-none"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-[11px] text-zinc-400 font-semibold">Тестовый текст:</label>
+        <textarea
+          value={inputSample}
+          onChange={(e) => setInputSample(e.target.value)}
+          rows={4}
+          className="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-xs font-mono text-zinc-200 focus:outline-none"
+        />
+      </div>
+
+      <div className="p-3 bg-zinc-900 rounded-lg border border-zinc-800 space-y-1">
+        <span className="text-[11px] font-bold text-indigo-300">Сгенерированный C# Regex:</span>
+        <pre className="text-[11px] font-mono text-purple-300 overflow-x-auto">
+          {analysis.csharpSnippet}
+        </pre>
+      </div>
+    </div>
+  );
+};
+
+const DevOSMetricsWindowContent: React.FC = () => {
+  const { project } = useDesigner();
+  const code = useMemo(() => generateCodeBehindCs(project), [project]);
+  const metrics = useMemo(() => RoslynCodeMetrics.analyzeCode(code), [code]);
+
+  return (
+    <div className="w-full h-full flex flex-col bg-zinc-950 p-4 text-xs font-sans text-zinc-200 overflow-y-auto space-y-3">
+      <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+        <div className="flex items-center gap-2">
+          <Activity className="w-4 h-4 text-emerald-400" />
+          <span className="font-bold text-white">Roslyn Cyclomatic Metrics & Debt</span>
+        </div>
+        <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[11px] font-bold">
+          MI: {metrics.overallMaintainabilityIndex}/100
+        </span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-zinc-900 p-2.5 rounded border border-zinc-800">
+          <span className="text-[10px] text-zinc-400 block">Avg Cyclomatic V(G)</span>
+          <span className="text-lg font-bold font-mono text-indigo-400">{metrics.averageCyclomaticComplexity}</span>
+        </div>
+        <div className="bg-zinc-900 p-2.5 rounded border border-zinc-800">
+          <span className="text-[10px] text-zinc-400 block">Lines of Code (LOC)</span>
+          <span className="text-lg font-bold font-mono text-cyan-400">{metrics.totalLinesOfCode}</span>
+        </div>
+        <div className="bg-zinc-900 p-2.5 rounded border border-zinc-800">
+          <span className="text-[10px] text-zinc-400 block">Техдолг (Refactor Time)</span>
+          <span className="text-lg font-bold font-mono text-amber-400">{metrics.technicalDebtMinutes} мин</span>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <span className="text-[11px] font-semibold text-zinc-300">Методы решения:</span>
+        <div className="space-y-1 max-h-48 overflow-y-auto">
+          {metrics.methods.map((m) => (
+            <div
+              key={m.name}
+              className="p-2 bg-zinc-900 rounded border border-zinc-800 flex items-center justify-between font-mono"
+            >
+              <span className="text-white font-bold">{m.name}</span>
+              <div className="flex items-center gap-2 text-[11px]">
+                <span className="text-indigo-400">$V(G) = {m.cyclomaticComplexity}</span>
+                <span className="text-zinc-500">|</span>
+                <span className="text-emerald-400">MI: {m.maintainabilityIndex}%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

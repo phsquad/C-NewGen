@@ -10,6 +10,9 @@ import { ViewportTransform } from '../../utils/viewportTransform';
 import { calculateSmartSnapping } from '../../utils/smartSnapping';
 import { getDefaultEventForControl } from '../../utils/defaultEvents';
 import { useDesignerStore } from '../../store/designerStore';
+import { SemanticRefactoringModal } from '../modals/SemanticRefactoringModal';
+import { CodeMetricsStudioModal } from '../modals/CodeMetricsStudioModal';
+import { ResxStudioModal } from '../modals/ResxStudioModal';
 
 export const DesignSurface: React.FC = () => {
   const {
@@ -93,6 +96,11 @@ export const DesignSurface: React.FC = () => {
   } | null>(null);
 
   const [showHotkeysHelp, setShowHotkeysHelp] = useState(false);
+
+  // Pro-IDE Context Menu Modals
+  const [refactorModalOpen, setRefactorModalOpen] = useState(false);
+  const [metricsModalOpen, setMetricsModalOpen] = useState(false);
+  const [resxModalOpen, setResxModalOpen] = useState(false);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const allForms = useMemo(() => {
@@ -976,7 +984,13 @@ export const DesignSurface: React.FC = () => {
           onSelect={selectNode}
           onDoubleClick={handleNodeDoubleClick}
           onContextMenu={(id, e) => {
-            setContextMenu({ x: e.clientX, y: e.clientY, nodeId: id });
+            e.preventDefault();
+            selectNode(id);
+            const menuWidth = 260;
+            const menuHeight = 360;
+            const clampedX = Math.max(10, Math.min(e.clientX, window.innerWidth - menuWidth - 10));
+            const clampedY = Math.max(10, Math.min(e.clientY, window.innerHeight - menuHeight - 10));
+            setContextMenu({ x: clampedX, y: clampedY, nodeId: id });
           }}
           onStartDrag={handleStartDrag}
           onStartResize={handleStartResize}
@@ -1263,7 +1277,7 @@ export const DesignSurface: React.FC = () => {
         </button>
       </div>
 
-      {/* Floating RMB Context Menu (Правка 16.2) */}
+      {/* Floating RMB Context Menu (Правка 16.2 & Pro-IDE) */}
       {contextMenu && (
         <div
           style={{
@@ -1271,20 +1285,95 @@ export const DesignSurface: React.FC = () => {
             left: `${contextMenu.x}px`,
             top: `${contextMenu.y}px`,
           }}
-          className="z-50 bg-zinc-900/95 backdrop-blur-md border border-zinc-700/80 rounded-xl shadow-2xl py-1.5 w-52 text-xs select-none animate-in fade-in-50 duration-75 text-zinc-200"
+          className="z-50 bg-zinc-900/95 backdrop-blur-md border border-zinc-700/80 rounded-xl shadow-2xl py-1.5 w-60 text-xs select-none animate-in fade-in-50 duration-75 text-zinc-200"
           onClick={() => setContextMenu(null)}
         >
-          <div className="px-3 py-1 font-mono text-[10px] text-zinc-500 uppercase border-b border-zinc-800/80 mb-1">
-            Контрол: {nodes[contextMenu.nodeId]?.properties.name || 'Элемент'}
+          <div className="px-3 py-1 font-mono text-[10px] text-indigo-400 font-bold uppercase border-b border-zinc-800/80 mb-1 flex items-center justify-between">
+            <span>Элемент: {nodes[contextMenu.nodeId]?.properties.name || 'Контрол'}</span>
+            <span className="text-zinc-500 font-normal">[{nodes[contextMenu.nodeId]?.type}]</span>
           </div>
 
           <button
             type="button"
+            onClick={() => {
+              if (contextMenu.nodeId) {
+                handleNodeDoubleClick(contextMenu.nodeId);
+                setCodeDockOpen(true);
+              }
+            }}
+            className="w-full px-3 py-1.5 text-left hover:bg-blue-600/20 text-blue-300 hover:text-blue-200 flex items-center justify-between cursor-pointer font-semibold"
+          >
+            <span>⚡️ Перейти к коду метода (F7)</span>
+            <span className="text-[10px] font-mono text-zinc-500">2x Click</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const name = nodes[contextMenu.nodeId]?.properties.name || 'btnCalculate';
+              setRefactorModalOpen(true);
+            }}
+            className="w-full px-3 py-1.5 text-left hover:bg-indigo-600/20 text-indigo-300 hover:text-indigo-200 flex items-center justify-between cursor-pointer font-semibold"
+          >
+            <span>🔄 Переименовать символ (F2)</span>
+            <span className="text-[10px] font-mono text-zinc-500">Roslyn AST</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveRightTab('actions')}
+            className="w-full px-3 py-1.5 text-left hover:bg-purple-600/20 text-purple-300 hover:text-purple-200 flex items-center justify-between cursor-pointer"
+          >
+            <span>🪄 No-Code Action Flow...</span>
+            <span className="text-[10px] font-mono text-zinc-500">100+ экшенов</span>
+          </button>
+
+          <div className="h-px bg-zinc-800/80 my-1" />
+
+          <button
+            type="button"
+            onClick={() => setResxModalOpen(true)}
+            className="w-full px-3 py-1.5 text-left hover:bg-cyan-600/20 text-cyan-300 hover:text-cyan-200 flex items-center justify-between cursor-pointer"
+          >
+            <span>🌍 Локализация (.resx Studio)</span>
+            <span className="text-[10px] font-mono text-zinc-500">en/ru/de</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMetricsModalOpen(true)}
+            className="w-full px-3 py-1.5 text-left hover:bg-emerald-600/20 text-emerald-300 hover:text-emerald-200 flex items-center justify-between cursor-pointer"
+          >
+            <span>📊 Метрики сложности $V(G)$</span>
+            <span className="text-[10px] font-mono text-zinc-500">McCabe</span>
+          </button>
+
+          <div className="h-px bg-zinc-800/80 my-1" />
+
+          <button
+            type="button"
             onClick={() => duplicateSelectedNodes()}
-            className="w-full px-3 py-1.5 text-left hover:bg-blue-600/20 hover:text-blue-300 flex items-center justify-between cursor-pointer"
+            className="w-full px-3 py-1.5 text-left hover:bg-zinc-800 flex items-center justify-between cursor-pointer"
           >
             <span>📄 Дублировать</span>
             <span className="text-[10px] font-mono text-zinc-500">Ctrl+D</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (contextMenu.nodeId && nodes[contextMenu.nodeId]) {
+                const isLocked = nodes[contextMenu.nodeId].properties.locked;
+                updateNodeBounds(contextMenu.nodeId, nodes[contextMenu.nodeId].bounds);
+                // toggle lock
+                nodes[contextMenu.nodeId].properties.locked = !isLocked;
+                addConsoleLog('DesignSurface', `Элемент ${nodes[contextMenu.nodeId].properties.name} ${!isLocked ? 'заблокирован от сдвига' : 'разблокирован'}.`);
+              }
+            }}
+            className="w-full px-3 py-1.5 text-left hover:bg-zinc-800 flex items-center justify-between cursor-pointer"
+          >
+            <span>🔒 Заблокировать от сдвига</span>
+            <span className="text-[10px] font-mono text-zinc-500">Lock</span>
           </button>
 
           <button
@@ -1305,27 +1394,7 @@ export const DesignSurface: React.FC = () => {
             <span className="text-[10px] font-mono text-zinc-500">Ctrl+[</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => alignSelectedNodes('center')}
-            className="w-full px-3 py-1.5 text-left hover:bg-zinc-800 flex items-center justify-between cursor-pointer"
-          >
-            <span>📐 Выровнять по центру</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              if (contextMenu.nodeId) {
-                handleNodeDoubleClick(contextMenu.nodeId);
-              }
-            }}
-            className="w-full px-3 py-1.5 text-left hover:bg-amber-600/20 hover:text-amber-300 flex items-center justify-between cursor-pointer"
-          >
-            <span>⚡ Привязать событие Click...</span>
-          </button>
-
-          <div className="h-px bg-zinc-800 my-1" />
+          <div className="h-px bg-zinc-800/80 my-1" />
 
           <button
             type="button"
@@ -1337,6 +1406,21 @@ export const DesignSurface: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* Pro-IDE Modals */}
+      <SemanticRefactoringModal
+        isOpen={refactorModalOpen}
+        onClose={() => setRefactorModalOpen(false)}
+        initialSymbol={selectedNode?.properties.name || 'btnCalculate'}
+      />
+      <CodeMetricsStudioModal
+        isOpen={metricsModalOpen}
+        onClose={() => setMetricsModalOpen(false)}
+      />
+      <ResxStudioModal
+        isOpen={resxModalOpen}
+        onClose={() => setResxModalOpen(false)}
+      />
 
       {/* 🟢 РЕДАКТОР СОВМЕСТНОЙ РАБОТЫ: КУРСОРЫ НАПАРНИКОВ */}
       {p2pPeers.map(peer => (

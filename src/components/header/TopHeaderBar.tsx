@@ -55,6 +55,8 @@ import {
   FolderTree,
   Box,
   AlertCircle,
+  Home,
+  Zap,
 } from 'lucide-react';
 import { HistoryJournalPanel } from '../history/HistoryJournalPanel';
 import { ProjectManagerModal } from '../projectManager/ProjectManagerModal';
@@ -107,6 +109,13 @@ export const TopHeaderBar: React.FC = () => {
     setTabOrderMode,
     errorListOpen,
     setErrorListOpen,
+    exitToWelcomeHub,
+    showWiring,
+    toggleShowWiring,
+    xrayMode,
+    toggleXrayMode,
+    morphicMode,
+    toggleMorphicMode,
   } = useDesigner();
 
   // Dropdown menus states
@@ -117,7 +126,7 @@ export const TopHeaderBar: React.FC = () => {
   const [projectManagerOpen, setProjectManagerOpen] = useState(false);
   const [synthesizerModalOpen, setSynthesizerModalOpen] = useState(false);
   const [auditModalOpen, setAuditModalOpen] = useState(false);
-  const [genesisModalOpen, setGenesisModalOpen] = useState(true);
+  const [genesisModalOpen, setGenesisModalOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [storageModalOpen, setStorageModalOpen] = useState(false);
   const [beautifyNotice, setBeautifyNotice] = useState(false);
@@ -249,10 +258,21 @@ export const TopHeaderBar: React.FC = () => {
     <header className="studio-topbar flex items-center justify-between text-xs text-zinc-300">
       {/* ЛЕВАЯ ЧАСТЬ: Логотип и меню */}
       <div className="flex items-center gap-1" ref={menuRef}>
-        <div className="font-bold text-blue-500 mr-2 flex items-center gap-1.5 text-sm cursor-default">
+        <div className="font-bold text-blue-500 mr-1 flex items-center gap-1.5 text-sm cursor-default">
           <span className="text-base select-none">⚡️</span>
           <span className="bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent font-extrabold">NextGen</span>
         </div>
+
+        {/* 🏠 Главная кнопка "Хаб проектов" / "Выйти в хаб" */}
+        <button
+          type="button"
+          onClick={() => exitToWelcomeHub()}
+          className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-blue-600/20 to-purple-600/20 hover:from-blue-600/30 hover:to-purple-600/30 text-blue-300 hover:text-white border border-blue-500/40 rounded-lg text-xs font-semibold transition cursor-pointer shadow-xs mr-2 group"
+          title="Сохранить текущую работу и открыть Стартовый Хаб проектов (Welcome Launcher)"
+        >
+          <Home className="w-3.5 h-3.5 text-blue-400 group-hover:scale-110 transition" />
+          <span>🏠 Хаб</span>
+        </button>
 
         {/* Файл Menu */}
         <div className="relative">
@@ -261,6 +281,14 @@ export const TopHeaderBar: React.FC = () => {
           </button>
           {activeMenu === 'file' && (
             <div className="absolute top-full left-0 mt-1 w-56 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl py-1 z-50 text-[11px] font-mono">
+              <button
+                onClick={() => { exitToWelcomeHub(); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center gap-2 text-blue-300 font-bold"
+              >
+                <Home className="w-3.5 h-3.5 text-blue-400" />
+                <span>🏠 Выйти в Хаб проектов</span>
+              </button>
+              <div className="my-1 border-t border-zinc-800" />
               <button
                 onClick={() => { setGenesisModalOpen(true); setActiveMenu(null); }}
                 className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center gap-2 text-zinc-300"
@@ -591,10 +619,64 @@ export const TopHeaderBar: React.FC = () => {
             </span>
           )}
         </button>
+
+        {/* ⚡️ Нити данных (Signal-Wiring) */}
+        <button
+          type="button"
+          onClick={toggleShowWiring}
+          className={`px-2 py-1 border rounded-lg flex items-center gap-1 cursor-pointer font-bold text-[10px] transition-all shadow-xs ${
+            showWiring
+              ? 'bg-blue-600/20 border-blue-500 text-blue-300 ring-1 ring-blue-500/30'
+              : 'bg-zinc-900 hover:bg-zinc-850 border-zinc-800 text-zinc-400 hover:text-white'
+          }`}
+          title="Интерактивные нити данных прямо по холсту (Visual Signal-Wiring)"
+        >
+          <Zap className="w-3 h-3 text-cyan-400" />
+          <span>Нити</span>
+        </button>
+
+        {/* 🩻 2.5D X-Ray Layering */}
+        <button
+          type="button"
+          onClick={toggleXrayMode}
+          className={`px-2 py-1 border rounded-lg flex items-center gap-1 cursor-pointer font-bold text-[10px] transition-all shadow-xs ${
+            xrayMode
+              ? 'bg-cyan-600/25 border-cyan-400 text-cyan-200 ring-1 ring-cyan-400/40 animate-pulse'
+              : 'bg-zinc-900 hover:bg-zinc-850 border-zinc-800 text-zinc-400 hover:text-white'
+          }`}
+          title="2.5D X-Ray Изометрический просмотр скрытых слоев и вкладок"
+        >
+          <span>🩻</span>
+          <span>X-Ray 2.5D</span>
+        </button>
+
+        {/* 🧬 Morphic Layout Engine */}
+        <button
+          type="button"
+          onClick={toggleMorphicMode}
+          className={`px-2 py-1 border rounded-lg flex items-center gap-1 cursor-pointer font-bold text-[10px] transition-all shadow-xs ${
+            morphicMode === 'adaptive'
+              ? 'bg-emerald-600/20 border-emerald-400 text-emerald-300'
+              : 'bg-zinc-900 hover:bg-zinc-850 border-zinc-800 text-zinc-400 hover:text-white'
+          }`}
+          title="Morphic Layout: Пиксели (WinForms) ⟷ Адаптивная Сетка (Flex/Grid)"
+        >
+          <span>🧬</span>
+          <span>{morphicMode === 'adaptive' ? 'Адаптив' : 'Пиксели'}</span>
+        </button>
       </div>
 
       {/* ПРАВАЯ ЧАСТЬ: Действия и Экспорт */}
       <div className="flex items-center gap-2">
+        {/* Индикатор автосохранения */}
+        <div
+          onClick={handleSave}
+          className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-900/60 border border-zinc-800 text-[10px] font-mono text-zinc-400 cursor-pointer hover:border-zinc-700 transition"
+          title="Нажмите для немедленного сохранения в LocalStorage & IndexedDB"
+        >
+          <span className={`w-1.5 h-1.5 rounded-full ${hasUnsavedChanges ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+          <span>{hasUnsavedChanges ? 'Синхронизация...' : 'Сохранено'}</span>
+        </div>
         <button
           type="button"
           onClick={handleBeautifyGrid}

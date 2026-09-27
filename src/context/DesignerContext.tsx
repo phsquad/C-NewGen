@@ -12,6 +12,8 @@ import {
   TargetFramework,
   OSFrameTheme,
   GridStep,
+  SignalPort,
+  WireConnection,
 } from '../types/ast';
 import { useDesignerStore, ToolboxDragStatus } from '../store/designerStore';
 import { WasmEngineStatus } from '../utils/wasmEngine';
@@ -77,9 +79,10 @@ interface DesignerContextType {
   removeForm: (formId: string) => void;
   getAllForms: () => DesignerNode[];
 
-  // Live Emulator, Sandbox & DevOS Desktop Mode
-  appMode: 'designer' | 'emulator' | 'devos';
-  setAppMode: (mode: 'designer' | 'emulator' | 'devos') => void;
+  // Live Emulator, Sandbox, DevOS Desktop & Welcome Hub Mode
+  appMode: 'designer' | 'emulator' | 'devos' | 'welcome';
+  setAppMode: (mode: 'designer' | 'emulator' | 'devos' | 'welcome') => void;
+  exitToWelcomeHub: () => void;
   consoleLogs: VirtualConsoleLog[];
   addConsoleLog: (category: VirtualConsoleLog['category'], text: string, details?: string) => void;
   clearConsoleLogs: () => void;
@@ -144,6 +147,30 @@ interface DesignerContextType {
   bringNodeToFront: (nodeId: string) => void;
   sendNodeToBack: (nodeId: string) => void;
   moveNodeOrder: (nodeId: string, direction: 'up' | 'down') => void;
+
+  // 🌟 5 NextGen Mechanics State & Methods
+  wires: WireConnection[];
+  showWiring: boolean;
+  setShowWiring: (show: boolean) => void;
+  toggleShowWiring: () => void;
+  addWire: (wire: WireConnection) => void;
+  removeWire: (wireId: string) => void;
+  clearWires: () => void;
+  pendingWireStart: SignalPort | null;
+  setPendingWireStart: (port: SignalPort | null) => void;
+
+  xrayMode: boolean;
+  setXrayMode: (enabled: boolean) => void;
+  toggleXrayMode: () => void;
+
+  radialHaloNodeId: string | null;
+  setRadialHaloNodeId: (nodeId: string | null) => void;
+
+  morphicMode: 'absolute' | 'adaptive';
+  setMorphicMode: (mode: 'absolute' | 'adaptive') => void;
+  toggleMorphicMode: () => void;
+
+  injectTableAsGrid: (tableName: string, columns: string[]) => void;
 
   // P2P Multiplayer Extension
   p2pSessionCode: string | null;
@@ -348,6 +375,7 @@ export const DesignerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     appMode: store.appMode,
     setAppMode: store.setAppMode,
+    exitToWelcomeHub: store.exitToWelcomeHub,
     consoleLogs: store.consoleLogs,
     addConsoleLog: store.addConsoleLog,
     clearConsoleLogs: store.clearConsoleLogs,
@@ -426,6 +454,30 @@ export const DesignerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     bringNodeToFront: store.bringNodeToFront,
     sendNodeToBack: store.sendNodeToBack,
     moveNodeOrder: store.moveNodeOrder,
+
+    // 🌟 5 NextGen Mechanics Values & Actions
+    wires: store.wires,
+    showWiring: store.showWiring,
+    setShowWiring: store.setShowWiring,
+    toggleShowWiring: store.toggleShowWiring,
+    addWire: store.addWire,
+    removeWire: store.removeWire,
+    clearWires: store.clearWires,
+    pendingWireStart: store.pendingWireStart,
+    setPendingWireStart: store.setPendingWireStart,
+
+    xrayMode: store.xrayMode,
+    setXrayMode: store.setXrayMode,
+    toggleXrayMode: store.toggleXrayMode,
+
+    radialHaloNodeId: store.radialHaloNodeId,
+    setRadialHaloNodeId: store.setRadialHaloNodeId,
+
+    morphicMode: store.morphicMode,
+    setMorphicMode: store.setMorphicMode,
+    toggleMorphicMode: store.toggleMorphicMode,
+
+    injectTableAsGrid: store.injectTableAsGrid,
 
     // P2P Multiplayer Values
     p2pSessionCode,

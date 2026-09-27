@@ -2,6 +2,8 @@ import React, { memo } from 'react';
 import { DesignerNode } from '../../types/ast';
 import { ControlRenderer } from './ControlRenderer';
 import { SmartTagActionGlyph } from './SmartTagActionGlyph';
+import { RadialActionHalo } from './RadialActionHalo';
+import { SignalWireEngine } from '../../utils/SignalWireEngine';
 import { useDesigner } from '../../context/DesignerContext';
 
 interface CanvasNodeItemProps {
@@ -34,7 +36,18 @@ export const CanvasNodeItem = memo<CanvasNodeItemProps>(({
   renderChildren,
 }) => {
   const isContainer = ['Panel', 'GroupBox', 'TabControl'].includes(node.type);
-  const { p2pPeers, isTabOrderMode, assignTabIndex } = useDesigner();
+  const {
+    p2pPeers,
+    isTabOrderMode,
+    assignTabIndex,
+    showWiring,
+    addWire,
+    pendingWireStart,
+    setPendingWireStart,
+    addConsoleLog,
+  } = useDesigner();
+
+  const { outPorts, inPorts } = SignalWireEngine.getDefaultPorts(node);
 
   // Find if any remote peer has selected this control (Multi-Select Color Halo - Pravka 25.3)
   const activePeer = p2pPeers?.find(p => p.selectedNodeId === node.id);
@@ -131,6 +144,74 @@ export const CanvasNodeItem = memo<CanvasNodeItemProps>(({
       {/* 2. Smart Tags / Action Glyphs: [ ► ] */}
       {!isEmulatorMode && !isTabOrderMode && (
         <SmartTagActionGlyph node={node} isSelected={isSelected} />
+      )}
+
+      {/* 3. 🎯 Radial Action Halo (Круговой микро-HUD прямо на элементе) */}
+      {!isEmulatorMode && !isTabOrderMode && isSelected && node.type !== 'Form' && (
+        <RadialActionHalo node={node} />
+      )}
+
+      {/* 4. ⚡️ Visual Signal-Wiring Ports (Входные и выходные неоновые коннекторы) */}
+      {showWiring && !isEmulatorMode && node.type !== 'Form' && (
+        <>
+          {/* Left In-Ports */}
+          <div className="absolute -left-2.5 top-1/2 -translate-y-1/2 flex flex-col gap-1 z-50 pointer-events-auto">
+            {inPorts.map(p => (
+              <button
+                key={p.name}
+                type="button"
+                onClick={e => {
+                  e.stopPropagation();
+                  if (pendingWireStart && pendingWireStart.nodeId !== node.id) {
+                    addWire({
+                      id: `wire_${Date.now()}_${Math.random().toString().slice(2, 6)}`,
+                      from: pendingWireStart,
+                      to: p,
+                      transformerExpr: p.name === 'Text' && pendingWireStart.name === 'Text' ? `$"Привет, {val}!"` : undefined,
+                    });
+                    addConsoleLog('System', `Создана нить данных: ${pendingWireStart.name} ➔ ${node.properties.name}.${p.name}`);
+                  }
+                }}
+                className={`w-3.5 h-3.5 rounded-full border border-white flex items-center justify-center transition-all cursor-pointer shadow-md ${
+                  pendingWireStart && pendingWireStart.nodeId !== node.id
+                    ? 'bg-emerald-500 scale-125 animate-ping'
+                    : 'bg-blue-600 hover:bg-cyan-400'
+                }`}
+                title={`Входной порт [In: ${p.name} (${p.dataType})]`}
+              >
+                <span className="w-1 h-1 bg-white rounded-full pointer-events-none" />
+              </button>
+            ))}
+          </div>
+
+          {/* Right Out-Ports */}
+          <div className="absolute -right-2.5 top-1/2 -translate-y-1/2 flex flex-col gap-1 z-50 pointer-events-auto">
+            {outPorts.map(p => {
+              const isSelectedPort = pendingWireStart?.nodeId === node.id && pendingWireStart.name === p.name;
+              return (
+                <button
+                  key={p.name}
+                  type="button"
+                  onClick={e => {
+                    e.stopPropagation();
+                    setPendingWireStart(isSelectedPort ? null : p);
+                    if (!isSelectedPort) {
+                      addConsoleLog('System', `Вытянут сигнал из ${node.properties.name}.${p.name}. Кликните на входной порт целевого контрола.`);
+                    }
+                  }}
+                  className={`w-3.5 h-3.5 rounded-full border border-white flex items-center justify-center transition-all cursor-pointer shadow-md ${
+                    isSelectedPort
+                      ? 'bg-amber-400 ring-2 ring-amber-300 scale-125 animate-pulse'
+                      : 'bg-cyan-500 hover:bg-amber-400'
+                  }`}
+                  title={`Выходной порт [Out: ${p.name} (${p.dataType})]. Кликните для протягивания нити`}
+                >
+                  <span className="w-1 h-1 bg-white rounded-full pointer-events-none" />
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
       {/* Peer selection halo badge */}
       {!isEmulatorMode && activePeer && !isSelected && (

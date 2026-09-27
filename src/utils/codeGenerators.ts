@@ -1,4 +1,5 @@
 import { DesignerProjectState, DesignerNode } from '../types/ast';
+import { SignalWireEngine } from './SignalWireEngine';
 
 /**
  * Generates WinForms Form1.Designer.cs compatible with .NET 8/9
@@ -356,7 +357,7 @@ ${controlConfigs}
             this.Text = "${escapeCsString(rootForm.properties.text || formName)}";
 ${rootForm.properties.backColor ? `            this.BackColor = System.Drawing.ColorTranslator.FromHtml("${rootForm.properties.backColor}");\n` : ''}${formEvents ? formEvents + '\n' : ''}
 ${containerAdds}
-${project.rawCustomLines && project.rawCustomLines.length > 0 ? `
+${project.wires && project.wires.length > 0 ? `\n${SignalWireEngine.compileWiresToCSharp(project.wires, project.nodes)}\n` : ''}${project.rawCustomLines && project.rawCustomLines.length > 0 ? `
             // 
             // [Custom User Statements & Logic (Preserved)]
             // 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useDesigner } from '../../context/DesignerContext';
 import {
   ZoomIn,
   ZoomOut,
@@ -13,6 +14,7 @@ import {
   Layers,
   AppWindow,
   Check,
+  Zap,
 } from 'lucide-react';
 import { OSFrameTheme, GridStep, DesignerNode } from '../../types/ast';
 import { DpiMode, DPI_PROFILES } from '../../utils/dpiNormalizer';
@@ -70,6 +72,15 @@ export const ViewportHud: React.FC<ViewportHudProps> = ({
   const [gridMenuOpen, setGridMenuOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [zoomMenuOpen, setZoomMenuOpen] = useState(false);
+
+  const {
+    showWiring,
+    toggleShowWiring,
+    xrayMode,
+    toggleXrayMode,
+    morphicMode,
+    toggleMorphicMode,
+  } = useDesigner();
 
   const themeLabels: Record<OSFrameTheme, { label: string; icon: string }> = {
     Win11Mica: { label: 'Win11', icon: '🪟' },
@@ -197,7 +208,57 @@ export const ViewportHud: React.FC<ViewportHudProps> = ({
 
       <div className="h-4 w-px bg-zinc-700/60" />
 
-      {/* 5. Zoom & Fit Screen */}
+      {/* 5. 🌟 5 Next-Gen Mechanics Quick Toggles */}
+      <div className="flex items-center gap-1">
+        {/* ⚡️ Нити данных */}
+        <button
+          type="button"
+          onClick={toggleShowWiring}
+          className={`p-1.5 rounded-lg border text-[11px] font-semibold cursor-pointer transition flex items-center gap-1 ${
+            showWiring
+              ? 'bg-blue-600/20 border-blue-500/50 text-blue-400'
+              : 'bg-zinc-900/40 border-zinc-800/60 text-zinc-500 hover:text-zinc-300'
+          }`}
+          title="⚡️ Интерактивные нити данных (Visual Signal-Wiring)"
+        >
+          <Zap className="w-3 h-3 text-cyan-400" />
+          <span className="hidden sm:inline">Нити</span>
+        </button>
+
+        {/* 🩻 2.5D X-Ray */}
+        <button
+          type="button"
+          onClick={toggleXrayMode}
+          className={`px-2 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer transition flex items-center gap-1 ${
+            xrayMode
+              ? 'bg-cyan-600/25 border-cyan-400 text-cyan-300 ring-1 ring-cyan-400/30 animate-pulse'
+              : 'bg-zinc-900/40 border-zinc-800/60 text-zinc-500 hover:text-zinc-300'
+          }`}
+          title="🩻 2.5D X-Ray Изометрический просмотр скрытых слоев и вкладок"
+        >
+          <span>🩻</span>
+          <span className="hidden sm:inline">2.5D</span>
+        </button>
+
+        {/* 🧬 Morphic Layout */}
+        <button
+          type="button"
+          onClick={toggleMorphicMode}
+          className={`px-2 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer transition flex items-center gap-1 ${
+            morphicMode === 'adaptive'
+              ? 'bg-emerald-600/20 border-emerald-400/50 text-emerald-300'
+              : 'bg-zinc-900/40 border-zinc-800/60 text-zinc-500 hover:text-zinc-300'
+          }`}
+          title="🧬 Морфинг: Пиксели WinForms ⟷ Адаптивная Сетка (Flex/Grid)"
+        >
+          <span>🧬</span>
+          <span className="hidden sm:inline">{morphicMode === 'adaptive' ? 'Сетка' : 'Пикс'}</span>
+        </button>
+      </div>
+
+      <div className="h-4 w-px bg-zinc-700/60" />
+
+      {/* 6. Zoom & Fit Screen */}
       <div className="flex items-center gap-1 font-mono text-[11px]">
         <button
           type="button"

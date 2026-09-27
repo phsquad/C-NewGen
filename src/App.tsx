@@ -18,6 +18,9 @@ import { MultiTabSyncBanner } from './components/notifications/MultiTabSyncBanne
 import { registerServiceWorker } from './utils/serviceWorkerRegistration';
 import { decodeProjectFromHashUrl, getRoomIdFromUrl } from './utils/urlHashSharing';
 import { DevOSDesktop } from './components/devos/DevOSDesktop';
+import { WelcomeHub } from './components/welcome/WelcomeHub';
+import { loadProjectFromLocalStorage, getActiveProjectId } from './utils/storage';
+import { db } from './utils/indexedDbStorage';
 import { StorageManagerModal } from './components/modals/StorageManagerModal';
 import { ErrorListPanel } from './components/diagnostics/ErrorListPanel';
 import {
@@ -67,15 +70,43 @@ const DesignerApp: React.FC = () => {
   // Studio Overlay Panel Mode ('database' | 'git' | 'terminal' | 'uml' | 'settings' | null)
   const [activeOverlay, setActiveOverlay] = useState<'database' | 'git' | 'terminal' | 'uml' | 'settings' | null>(null);
 
-  // Auto-load project state from URL hash on mount
+  // Auto-load project state from URL hash or perform F5 Auto-Restore
   useEffect(() => {
     const sharedProject = decodeProjectFromHashUrl();
     if (sharedProject) {
       setProjectState(sharedProject);
       setShareToast(`🎉 Проект "${sharedProject.projectName || 'Shared App'}" загружен по ссылке!`);
       setTimeout(() => setShareToast(null), 5000);
+      setAppMode('designer');
+      return;
     }
-  }, [setProjectState]);
+
+    // F5 Instant Auto-Restore Engine (< 0.05s)
+    const activeProjId = getActiveProjectId();
+    if (activeProjId) {
+      const localSaved = loadProjectFromLocalStorage();
+      if (localSaved && localSaved.rootFormId) {
+        setProjectState(localSaved);
+        setShareToast(`⚡️ [✔ Проект восстановлен: «${localSaved.projectName || activeProjId}»]`);
+        setTimeout(() => setShareToast(null), 4000);
+        setAppMode('designer');
+      } else {
+        db.projects.get(activeProjId).then(proj => {
+          if (proj && proj.state) {
+            setProjectState(proj.state);
+            setShareToast(`⚡️ [✔ Проект восстановлен: «${proj.name}»]`);
+            setTimeout(() => setShareToast(null), 4000);
+            setAppMode('designer');
+          }
+        }).catch(() => {
+          setAppMode('welcome');
+        });
+      }
+    } else {
+      // First visit or user clicked "Exit to Hub"
+      setAppMode('welcome');
+    }
+  }, [setProjectState, setAppMode]);
 
   // Dynamic Document Title Sync (Правка 16.1)
   useEffect(() => {
@@ -188,6 +219,10 @@ const DesignerApp: React.FC = () => {
     setImportModalOpen,
     activeOverlay,
   ]);
+
+  if (appMode === 'welcome') {
+    return <WelcomeHub onLaunchProject={() => setAppMode('designer')} />;
+  }
 
   if (appMode === 'devos') {
     return <DevOSDesktop onExitDevOS={() => setAppMode('designer')} />;

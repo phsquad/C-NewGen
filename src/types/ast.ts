@@ -212,6 +212,24 @@ export interface DesignerProjectState {
   targetFramework: TargetFramework; // Target generation stack
   rawCustomLines?: string[];   // Preserved user custom statements & comments
   orphanedHandlers?: OrphanedEventHandler[]; // Preserved methods from deleted controls (Pravka 9.1)
+  wires?: WireConnection[];    // ⚡️ Visual Signal-Wiring Connections
+  morphicMode?: 'absolute' | 'adaptive'; // 🧬 Morphic Layout Engine (Absolute Win32 vs Adaptive Flex/Anchors)
+  xrayMode?: boolean;          // 🩻 2.5D X-Ray Layering
+  showWiring?: boolean;        // ⚡️ Toggle wires visibility on canvas
+}
+
+export interface SignalPort {
+  nodeId: string;
+  portType: 'property_out' | 'event_out' | 'property_in' | 'action_in';
+  name: string; // e.g. "Text", "Click", "Value", "Enabled", "Visible", "Close", "Clear"
+  dataType: 'string' | 'bool' | 'int' | 'event' | 'void' | 'any';
+}
+
+export interface WireConnection {
+  id: string;
+  from: SignalPort;
+  to: SignalPort;
+  transformerExpr?: string; // e.g. `$"Привет, {val}!"`
 }
 
 export type SnapGuideKind = 'edge' | 'center' | 'margin' | 'gap';

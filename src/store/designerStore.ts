@@ -13,6 +13,8 @@ import {
   OSFrameTheme,
   GridStep,
   OrphanedEventHandler,
+  SignalPort,
+  WireConnection,
 } from '../types/ast';
 import {
   HistoryCommand,
@@ -129,9 +131,39 @@ export interface DesignerStoreState {
   sendNodeToBack: (nodeId: string) => void;
   moveNodeOrder: (nodeId: string, direction: 'up' | 'down') => void;
 
-  // Live Emulator, Sandbox & DevOS Desktop Mode
-  appMode: 'designer' | 'emulator' | 'devos';
-  setAppMode: (mode: 'designer' | 'emulator' | 'devos') => void;
+  // 🌟 5 NextGen Mechanics State & Methods
+  // 1. Visual Signal-Wiring
+  wires: WireConnection[];
+  showWiring: boolean;
+  setShowWiring: (show: boolean) => void;
+  toggleShowWiring: () => void;
+  addWire: (wire: WireConnection) => void;
+  removeWire: (wireId: string) => void;
+  clearWires: () => void;
+  pendingWireStart: SignalPort | null;
+  setPendingWireStart: (port: SignalPort | null) => void;
+
+  // 2. 2.5D X-Ray Layering
+  xrayMode: boolean;
+  setXrayMode: (enabled: boolean) => void;
+  toggleXrayMode: () => void;
+
+  // 3. Radial Action Halo
+  radialHaloNodeId: string | null;
+  setRadialHaloNodeId: (nodeId: string | null) => void;
+
+  // 4. Morphic Layout Engine
+  morphicMode: 'absolute' | 'adaptive';
+  setMorphicMode: (mode: 'absolute' | 'adaptive') => void;
+  toggleMorphicMode: () => void;
+
+  // 5. Quantum Loop 4-in-1 (SQLite ⟷ Designer ⟷ AST ⟷ Code)
+  injectTableAsGrid: (tableName: string, columns: string[], sampleRows?: any[]) => void;
+
+  // Live Emulator, Sandbox, DevOS Desktop & Welcome Hub Mode
+  appMode: 'designer' | 'emulator' | 'devos' | 'welcome';
+  setAppMode: (mode: 'designer' | 'emulator' | 'devos' | 'welcome') => void;
+  exitToWelcomeHub: () => void;
   consoleLogs: VirtualConsoleLog[];
   addConsoleLog: (category: VirtualConsoleLog['category'], text: string, details?: string) => void;
   clearConsoleLogs: () => void;
@@ -252,7 +284,22 @@ export const useDesignerStore = create<DesignerStoreState>((set, get) => ({
   solutionBuildConfiguration: 'Debug',
   solutionBuildPlatform: 'Any CPU',
 
-  appMode: 'designer',
+  // 🌟 5 NextGen Mechanics State
+  wires: initialProject.wires || [],
+  showWiring: true,
+  pendingWireStart: null,
+  xrayMode: false,
+  radialHaloNodeId: null,
+  morphicMode: 'absolute',
+
+  appMode: typeof window !== 'undefined' && !localStorage.getItem('devos_active_project_id') ? 'welcome' : 'designer',
+  exitToWelcomeHub: () => {
+    get().saveProject();
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('devos_active_project_id');
+    }
+    set({ appMode: 'welcome' });
+  },
   consoleLogs: [
     {
       id: 'init-1',
@@ -286,6 +333,10 @@ export const useDesignerStore = create<DesignerStoreState>((set, get) => ({
       targetFramework: s.targetFramework,
       rawCustomLines: s.rawCustomLines,
       orphanedHandlers: s.orphanedHandlers,
+      wires: s.wires,
+      morphicMode: s.morphicMode,
+      xrayMode: s.xrayMode,
+      showWiring: s.showWiring,
     };
   },
 
@@ -1375,6 +1426,85 @@ export const useDesignerStore = create<DesignerStoreState>((set, get) => ({
       };
     });
   },
+
+  // 🌟 5 NextGen Mechanics Implementation
+  // 1. Visual Signal-Wiring
+  setShowWiring: (show: boolean) => set({ showWiring: show }),
+  toggleShowWiring: () => set(state => ({ showWiring: !state.showWiring })),
+  addWire: (wire: WireConnection) => set(state => {
+    const filtered = state.wires.filter(w => !(w.from.nodeId === wire.from.nodeId && w.from.name === wire.from.name && w.to.nodeId === wire.to.nodeId && w.to.name === wire.to.name));
+    return {
+      wires: [...filtered, wire],
+      hasUnsavedChanges: true,
+      pendingWireStart: null,
+    };
+  }),
+  removeWire: (wireId: string) => set(state => ({
+    wires: state.wires.filter(w => w.id !== wireId),
+    hasUnsavedChanges: true,
+  })),
+  clearWires: () => set({ wires: [], hasUnsavedChanges: true }),
+  setPendingWireStart: (port: SignalPort | null) => set({ pendingWireStart: port }),
+
+  // 2. 2.5D X-Ray Layering
+  setXrayMode: (enabled: boolean) => set({ xrayMode: enabled }),
+  toggleXrayMode: () => set(state => ({ xrayMode: !state.xrayMode })),
+
+  // 3. Radial Action Halo
+  setRadialHaloNodeId: (nodeId: string | null) => set({ radialHaloNodeId: nodeId }),
+
+  // 4. Morphic Layout Engine
+  setMorphicMode: (mode: 'absolute' | 'adaptive') => set({ morphicMode: mode }),
+  toggleMorphicMode: () => set(state => ({ morphicMode: state.morphicMode === 'absolute' ? 'adaptive' : 'absolute' })),
+
+  // 5. Quantum Loop 4-in-1: Inject SQLite table directly as connected DataGridView
+  injectTableAsGrid: (tableName: string, columns: string[]) => {
+    const state = get();
+    const activeForm = state.nodes[state.activeFormId] || state.nodes[state.rootFormId];
+    if (!activeForm) return;
+
+    const gridId = `dgv_${tableName.toLowerCase()}_${Date.now().toString().slice(-4)}`;
+    const gridNode: DesignerNode = {
+      id: gridId,
+      type: 'DataGridView',
+      parentId: activeForm.id,
+      childrenIds: [],
+      bounds: {
+        x: 32,
+        y: 48,
+        width: Math.min(520, activeForm.bounds.width - 64),
+        height: Math.min(260, activeForm.bounds.height - 80),
+      },
+      properties: {
+        name: `dgv${tableName}`,
+        text: `Таблица: ${tableName}`,
+        columns: columns && columns.length > 0 ? columns : ['Id', 'Название', 'Дата'],
+        dock: 'None',
+        allowUserToAddRows: true,
+        autoSize: true,
+        enabled: true,
+        visible: true,
+      },
+      events: {},
+    };
+
+    set(s => ({
+      nodes: {
+        ...s.nodes,
+        [gridId]: gridNode,
+        [activeForm.id]: {
+          ...activeForm,
+          childrenIds: [...activeForm.childrenIds, gridId],
+        },
+      },
+      selectedNodeIds: [gridId],
+      activeRightTab: 'properties',
+      hasUnsavedChanges: true,
+    }));
+
+    get().addConsoleLog('System', `Квантовый контур 4-в-1: Таблица SQLite '${tableName}' внедрена как DataGridView 'dgv${tableName}'`);
+  },
+
   setToolboxDragState: (status) => set(state => ({
     toolboxDragState: status ? { ...(state.toolboxDragState || { isDragging: false, controlType: null, targetContainerId: null, targetContainerName: null, futureName: null, localPos: null, screenPos: null }), ...status } : null,
   })),

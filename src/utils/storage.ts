@@ -7,16 +7,44 @@ import {
   generateCsproj,
 } from './codeGenerators';
 
-const STORAGE_KEY = 'nextgen_csharp_designer_project_v1';
-const PROJECTS_LIST_KEY = 'nextgen_csharp_saved_projects_v1';
+export const STORAGE_KEY = 'nextgen_csharp_designer_project_v1';
+export const PROJECTS_LIST_KEY = 'nextgen_csharp_saved_projects_v1';
+export const DEVOS_ACTIVE_PROJECT_KEY = 'devos_active_project_id';
 
 export interface LocalStorageSavedProject {
   id: string;
   name: string;
   updatedAt: number;
   createdAt: number;
+  isPinned?: boolean;
+  tags?: string[];
+  framework?: string;
   state: DesignerProjectState;
 }
+
+export const getActiveProjectId = (): string | null => {
+  try {
+    return localStorage.getItem(DEVOS_ACTIVE_PROJECT_KEY);
+  } catch {
+    return null;
+  }
+};
+
+export const setActiveProjectId = (id: string): void => {
+  try {
+    localStorage.setItem(DEVOS_ACTIVE_PROJECT_KEY, id);
+  } catch {
+    // ignore
+  }
+};
+
+export const clearActiveProjectId = (): void => {
+  try {
+    localStorage.removeItem(DEVOS_ACTIVE_PROJECT_KEY);
+  } catch {
+    // ignore
+  }
+};
 
 export const saveProjectToLocalStorageList = (project: DesignerProjectState): void => {
   try {
@@ -71,6 +99,9 @@ export const saveProjectToLocalStorage = (project: DesignerProjectState): number
   try {
     const serialized = JSON.stringify(project);
     localStorage.setItem(STORAGE_KEY, serialized);
+    if (project.projectName) {
+      setActiveProjectId(project.projectName);
+    }
     // Return size in bytes
     return new Blob([serialized]).size;
   } catch (err) {

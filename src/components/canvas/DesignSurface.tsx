@@ -5,6 +5,7 @@ import { CanvasNodeItem } from './CanvasNodeItem';
 import { InfiniteDotGrid } from './InfiniteDotGrid';
 import { ViewportHud } from './ViewportHud';
 import { FormWindowShell } from './FormWindowShell';
+import { SignalWireOverlay } from './SignalWireOverlay';
 import { ViewportTransform } from '../../utils/viewportTransform';
 import { calculateSmartSnapping } from '../../utils/smartSnapping';
 import { getDefaultEventForControl } from '../../utils/defaultEvents';
@@ -73,6 +74,16 @@ export const DesignSurface: React.FC = () => {
     nextTabOrderIndex,
     setTabOrderMode,
     resetTabOrder,
+    wires,
+    showWiring,
+    setShowWiring,
+    toggleShowWiring,
+    xrayMode,
+    setXrayMode,
+    toggleXrayMode,
+    morphicMode,
+    setMorphicMode,
+    toggleMorphicMode,
   } = useDesigner();
 
   const [contextMenu, setContextMenu] = useState<{
@@ -1033,12 +1044,15 @@ export const DesignSurface: React.FC = () => {
         onAddForm={() => addForm()}
       />
 
-      {/* 3. Upper DOM Layer with Hardware-Accelerated matrix() Transformation */}
+      {/* 3. Upper DOM Layer with Hardware-Accelerated matrix() Transformation & 2.5D X-Ray */}
       <div
         style={{
-          transform: `matrix(${zoom}, 0, 0, ${zoom}, ${panOffset.x}, ${panOffset.y})`,
+          transform: xrayMode
+            ? `matrix(${zoom}, 0, 0, ${zoom}, ${panOffset.x}, ${panOffset.y}) perspective(1400px) rotateX(28deg) rotateZ(-18deg)`
+            : `matrix(${zoom}, 0, 0, ${zoom}, ${panOffset.x}, ${panOffset.y})`,
           transformOrigin: '0 0',
-          transition: isPanning ? 'none' : 'transform 0.04s ease-out',
+          transformStyle: 'preserve-3d',
+          transition: isPanning ? 'none' : 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
         className="absolute top-0 left-0 pointer-events-auto"
       >
@@ -1072,7 +1086,46 @@ export const DesignSurface: React.FC = () => {
             />
           );
         })}
+
+        {/* ⚡️ Visual Signal-Wiring Overlay (Interactive data threads & transformers) */}
+        <SignalWireOverlay canvasZoom={zoom} canvasPan={panOffset} />
       </div>
+
+      {/* 🩻 2.5D X-Ray Mode Floating Banner */}
+      {xrayMode && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-cyan-950/95 backdrop-blur-md border border-cyan-400/80 rounded-xl px-4 py-2 shadow-2xl flex items-center gap-3 text-xs animate-in slide-in-from-top-4 duration-150 select-none">
+          <div className="flex items-center gap-2">
+            <span className="text-base">🩻</span>
+            <span className="font-bold text-cyan-200 font-mono">РЕЖИМ 2.5D X-RAY:</span>
+            <span className="text-zinc-300">Изометрический разрез слоев, панелей и глубины Z-Index</span>
+          </div>
+          <button
+            type="button"
+            onClick={toggleXrayMode}
+            className="px-2.5 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-[11px] cursor-pointer transition shadow-xs"
+          >
+            Закрыть 2.5D (Esc)
+          </button>
+        </div>
+      )}
+
+      {/* 🧬 Morphic Layout Engine Adaptive Mode Floating Banner */}
+      {morphicMode === 'adaptive' && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-950/95 backdrop-blur-md border border-emerald-400/80 rounded-xl px-4 py-2 shadow-2xl flex items-center gap-3 text-xs animate-in slide-in-from-top-4 duration-150 select-none">
+          <div className="flex items-center gap-2">
+            <span className="text-base">🧬</span>
+            <span className="font-bold text-emerald-200 font-mono">MORPHIC LAYOUT ENGINE:</span>
+            <span className="text-zinc-300">Адаптивная гибкая сетка (Auto-flow Flex/Grid & responsive containers)</span>
+          </div>
+          <button
+            type="button"
+            onClick={toggleMorphicMode}
+            className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] cursor-pointer transition shadow-xs"
+          >
+            Пиксели (WinForms)
+          </button>
+        </div>
+      )}
 
       {/* Tab Order Mode Floating Banner */}
       {isTabOrderMode && (

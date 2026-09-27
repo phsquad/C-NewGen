@@ -12,11 +12,32 @@ export interface CreatedProjectResult {
   template: TemplateDefinition;
 }
 
+export interface TemplateCustomizationOptions {
+  customTitle?: string;
+  projectName?: string;
+  theme?: 'dark' | 'light' | 'blue' | 'purple' | 'emerald';
+  primaryColor?: string;
+  enableDatabase?: boolean;
+  seedRecordCount?: number;
+  fontSize?: number;
+}
+
 /**
  * Generates an initial SQLite DDL schema string for a template
  */
-export const generateTemplateSqlSchema = (tpl: TemplateDefinition): string => {
+export const generateTemplateSqlSchema = (
+  tpl: TemplateDefinition,
+  customOptions?: TemplateCustomizationOptions
+): string => {
   const tableName = tpl.dbTableName || 'AppDataRecord';
+  const seedCount = customOptions?.seedRecordCount ?? 3;
+
+  const seedRows: string[] = [];
+  for (let i = 1; i <= seedCount; i++) {
+    seedRows.push(
+      `    ('${tpl.title} - Запись #${i}', '${tpl.categoryTitle}', ${(i * 45.5).toFixed(1)}, 'Active', '{"seed_index": ${i}, "status": "ok"}')`
+    );
+  }
 
   return `-- ==============================================================================
 -- SQLite Schema DDL for Template #${tpl.num}: ${tpl.title}
@@ -39,11 +60,9 @@ CREATE TABLE IF NOT EXISTS ${tableName} (
 CREATE INDEX IF NOT EXISTS IX_${tableName}_Category ON ${tableName}(Category);
 CREATE INDEX IF NOT EXISTS IX_${tableName}_CreatedAt ON ${tableName}(CreatedAt);
 
--- Initial Mock Data Seed
+-- Initial Data Seed (${seedCount} records)
 INSERT INTO ${tableName} (Title, Category, Value, Status, PayloadJson) VALUES
-    ('${tpl.title} - Запись Alpha', '${tpl.categoryTitle}', 100.0, 'Active', '{"version": 1, "note": "Initial template seed"}'),
-    ('${tpl.title} - Запись Beta', '${tpl.categoryTitle}', 250.5, 'Active', '{"version": 1, "note": "Sample record"}'),
-    ('${tpl.title} - Запись Gamma', '${tpl.categoryTitle}', 42.0, 'Archived', '{"version": 1, "note": "Archived entry"}');
+${seedRows.join(',\n')};
 `;
 };
 
@@ -53,7 +72,8 @@ INSERT INTO ${tableName} (Title, Category, Value, Status, PayloadJson) VALUES
  */
 export const createProjectFromTemplate = (
   templateId: string,
-  autoUpdateStore: boolean = true
+  autoUpdateStore: boolean = true,
+  customOptions?: TemplateCustomizationOptions
 ): CreatedProjectResult => {
   // 1. Retrieve template definition
   const tpl = TEMPLATES_CATALOG.find((t) => t.id === templateId) || TEMPLATES_CATALOG[0];
@@ -61,13 +81,49 @@ export const createProjectFromTemplate = (
   // 2. Instantiate full UI-AST project state
   const project = instantiateTemplateProject(tpl.id);
 
+  // Apply customizations to AST project
+  if (customOptions) {
+    if (customOptions.projectName) {
+      project.projectName = customOptions.projectName.replace(/[^a-zA-Z0-9_]/g, '');
+    }
+
+    const rootForm = project.nodes[project.rootFormId];
+    if (rootForm) {
+      if (customOptions.customTitle) {
+        rootForm.properties.text = `${customOptions.customTitle} - NextGen IDE`;
+      }
+
+      if (customOptions.fontSize) {
+        rootForm.properties.fontSize = customOptions.fontSize;
+      }
+
+      // Theme application
+      if (customOptions.theme === 'light') {
+        rootForm.properties.backColor = '#F3F4F6';
+        rootForm.properties.foreColor = '#111827';
+      } else if (customOptions.theme === 'blue') {
+        rootForm.properties.backColor = '#0F172A';
+        rootForm.properties.foreColor = '#F8FAFC';
+      } else if (customOptions.theme === 'purple') {
+        rootForm.properties.backColor = '#1E1B4B';
+        rootForm.properties.foreColor = '#EEF2FF';
+      } else if (customOptions.theme === 'emerald') {
+        rootForm.properties.backColor = '#064E3B';
+        rootForm.properties.foreColor = '#ECFDF5';
+      } else if (customOptions.theme === 'dark') {
+        rootForm.properties.backColor = '#18181B';
+        rootForm.properties.foreColor = '#F4F4F5';
+      }
+    }
+  }
+
   // 3. Generate C# WinForms .NET 8 code
   const designerCs = generateDesignerCs(project);
   const codeBehindCs = generateCodeBehindCs(project);
   const formCs = codeBehindCs; // Alias for Form1.cs
 
   // 4. Generate initial SQL schema
-  const sqlSchema = generateTemplateSqlSchema(tpl);
+  const sqlSchema = generateTemplateSqlSchema(tpl, customOptions);
 
   // 5. Update Zustand Store if requested
   if (autoUpdateStore) {
@@ -76,26 +132,33 @@ export const createProjectFromTemplate = (
     // Instantly update Zustand state via setProjectState
     store.setProjectState(project);
 
-    // If template has SQLite database, inject default table & grid structure
-    if (tpl.hasDatabase && tpl.dbTableName) {
+    // If template has SQLite database enabled, inject default table & grid structure
+    const shouldEnableDb = customOptions?.enableDatabase ?? tpl.hasDatabase;
+    if (shouldEnableDb && tpl.dbTableName) {
+      const seedCount = customOptions?.seedRecordCount ?? 3;
+      const rows = Array.from({ length: seedCount }, (_, idx) => ({
+        Id: idx + 1,
+        Title: `${customOptions?.customTitle || tpl.title} #${idx + 1}`,
+        Category: tpl.categoryTitle,
+        Value: (idx + 1) * 120.0,
+        Status: idx % 2 === 0 ? 'Active' : 'Pending',
+        CreatedAt: new Date(Date.now() - idx * 86400000).toISOString().split('T')[0],
+      }));
+
       store.injectTableAsGrid(
         tpl.dbTableName,
         ['Id', 'Title', 'Category', 'Value', 'Status', 'CreatedAt'],
-        [
-          { Id: 1, Title: `${tpl.title} #1`, Category: tpl.categoryTitle, Value: 100.0, Status: 'Active', CreatedAt: '2026-09-01' },
-          { Id: 2, Title: `${tpl.title} #2`, Category: tpl.categoryTitle, Value: 250.5, Status: 'Active', CreatedAt: '2026-09-05' },
-          { Id: 3, Title: `${tpl.title} #3`, Category: tpl.categoryTitle, Value: 42.0, Status: 'Archived', CreatedAt: '2026-09-12' },
-        ]
+        rows
       );
     }
 
     // Add console notification & history transaction
     store.addConsoleLog(
       'System',
-      `Развернут проект из шаблона #${tpl.num}: "${tpl.title}" (${tpl.categoryTitle}). C# и SQLite сгенерированы.`,
+      `Развернут и кастомизирован проект из шаблона #${tpl.num}: "${customOptions?.customTitle || tpl.title}" (${tpl.categoryTitle}). C# и SQLite сгенерированы.`,
       `Designer.cs: ${designerCs.split('\n').length} строк, Form.cs: ${codeBehindCs.split('\n').length} строк`
     );
-    store.commitTransaction(`Развертывание шаблона: ${tpl.title}`);
+    store.commitTransaction(`Развертывание шаблона: ${customOptions?.customTitle || tpl.title}`);
 
     // Set app mode to designer
     store.setAppMode('designer');

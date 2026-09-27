@@ -11,6 +11,7 @@ interface CanvasNodeItemProps {
   isSelected: boolean;
   spacePressed: boolean;
   isEmulatorMode?: boolean;
+  isInlineEditing?: boolean;
   onSelect: (id: string, shift: boolean) => void;
   onDoubleClick?: (id: string, e: React.MouseEvent) => void;
   onContextMenu?: (id: string, e: React.MouseEvent) => void;
@@ -18,6 +19,8 @@ interface CanvasNodeItemProps {
   onStartResize: (id: string, handle: string, e: React.MouseEvent) => void;
   onDropOnContainer?: (e: React.DragEvent, id: string) => void;
   onEventTrigger?: (eventName: string, handlerName: string, controlName: string) => void;
+  onSaveInlineText?: (id: string, newText: string) => void;
+  onCancelInlineEdit?: () => void;
   renderChildren?: (id: string) => React.ReactNode;
 }
 
@@ -26,6 +29,7 @@ export const CanvasNodeItem = memo<CanvasNodeItemProps>(({
   isSelected,
   spacePressed,
   isEmulatorMode = false,
+  isInlineEditing = false,
   onSelect,
   onDoubleClick,
   onContextMenu,
@@ -33,6 +37,8 @@ export const CanvasNodeItem = memo<CanvasNodeItemProps>(({
   onStartResize,
   onDropOnContainer,
   onEventTrigger,
+  onSaveInlineText,
+  onCancelInlineEdit,
   renderChildren,
 }) => {
   const isContainer = ['Panel', 'GroupBox', 'TabControl'].includes(node.type);
@@ -230,6 +236,43 @@ export const CanvasNodeItem = memo<CanvasNodeItemProps>(({
           isInteractive={isEmulatorMode}
           onEventTrigger={onEventTrigger}
         />
+
+        {/* ✍️ Inline Text Editing Overlay (Canvas In-Place Edit) */}
+        {!isEmulatorMode && isInlineEditing && (
+          <div
+            className="absolute inset-0 z-50 flex items-center justify-center p-0.5 bg-zinc-950/90 rounded border-2 border-cyan-400 shadow-xl"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="text"
+              autoFocus
+              defaultValue={node.properties.text !== undefined ? node.properties.text : node.properties.name}
+              onFocus={(e) => e.target.select()}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  onSaveInlineText?.(node.id, e.currentTarget.value);
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  onCancelInlineEdit?.();
+                }
+              }}
+              onBlur={(e) => {
+                onSaveInlineText?.(node.id, e.currentTarget.value);
+              }}
+              style={{
+                fontFamily: node.properties.fontFamily || 'Segoe UI',
+                fontSize: `${Math.max(10, node.properties.fontSize || 12)}px`,
+                fontWeight: node.properties.fontBold ? 'bold' : 'normal',
+                color: '#FFFFFF',
+              }}
+              className="w-full h-full bg-transparent text-center text-white outline-none border-0 px-1 font-sans"
+            />
+          </div>
+        )}
       </div>
 
       {/* Children container if Panel or GroupBox (Layer z-10 - Smart Hierarchy Priority) */}

@@ -42,6 +42,8 @@ import {
   ListFilter,
   FileCode,
   BarChart3,
+  Pin,
+  PinOff,
 } from 'lucide-react';
 
 interface ToolItemDefinition {
@@ -162,6 +164,8 @@ export const LeftSidebar: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isFlyoutOpen, setIsFlyoutOpen] = useState(false);
+  const { toolboxDragState } = useDesigner();
 
   // Auto-collapse left sidebar on small laptops (< 1400px) (Правка 16.3)
   useEffect(() => {
@@ -299,27 +303,287 @@ export const LeftSidebar: React.FC = () => {
 
   if (isCollapsed) {
     return (
-      <aside className="w-10 bg-zinc-900 border-r border-zinc-800 flex flex-col items-center py-2 text-zinc-400 select-none shrink-0 z-20">
-        <button
-          type="button"
-          onClick={() => setIsCollapsed(false)}
-          title="Развернуть Палитру контролов [▶]"
-          className="p-2 hover:bg-zinc-800 text-blue-400 rounded-lg transition-colors cursor-pointer mb-3"
-        >
-          <Box className="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => setIsCollapsed(false)}
-          title="Развернуть [▶]"
-          className="p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded transition-colors cursor-pointer"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-        <div className="flex-1 text-[10px] font-mono [writing-mode:vertical-lr] rotate-180 text-zinc-500 tracking-wider py-4">
-          ПАЛИТРА (40+ ИНСТРУМЕНТОВ)
-        </div>
-      </aside>
+      <>
+        {/* 1. Slim Icon Rail (44px) */}
+        <aside className="w-11 bg-zinc-900/95 backdrop-blur-md border-r border-zinc-800 flex flex-col items-center py-2.5 text-zinc-400 select-none shrink-0 z-30 space-y-3 shadow-lg">
+          {/* Solution Explorer icon */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveLeftTab('solution');
+              setIsFlyoutOpen((prev) => (activeLeftTab === 'solution' ? !prev : true));
+            }}
+            title="Обозреватель решений (Solution Explorer Pro)"
+            className={`p-2 rounded-xl transition-all cursor-pointer ${
+              activeLeftTab === 'solution' && isFlyoutOpen
+                ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40 shadow-sm'
+                : 'hover:bg-zinc-800 text-zinc-400 hover:text-amber-300'
+            }`}
+          >
+            <FolderTree className="w-4 h-4" />
+          </button>
+
+          {/* Toolbox icon */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveLeftTab('toolbox');
+              setIsFlyoutOpen((prev) => (activeLeftTab === 'toolbox' ? !prev : true));
+            }}
+            title="Палитра компонентов (Toolbox / 40+ элементов)"
+            className={`p-2 rounded-xl transition-all cursor-pointer ${
+              activeLeftTab === 'toolbox' && isFlyoutOpen
+                ? 'bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/40 shadow-sm'
+                : 'hover:bg-zinc-800 text-zinc-400 hover:text-blue-300'
+            }`}
+          >
+            <Box className="w-4 h-4" />
+          </button>
+
+          {/* Document Outline icon */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveLeftTab('tree');
+              setIsFlyoutOpen((prev) => (activeLeftTab === 'tree' ? !prev : true));
+            }}
+            title="Структура документа и Z-Index (Outline)"
+            className={`p-2 rounded-xl transition-all cursor-pointer ${
+              (activeLeftTab === 'tree' || activeLeftTab === 'outline') && isFlyoutOpen
+                ? 'bg-purple-500/20 text-purple-300 ring-1 ring-purple-500/40 shadow-sm'
+                : 'hover:bg-zinc-800 text-zinc-400 hover:text-purple-300'
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+          </button>
+
+          <div className="w-5 h-px bg-zinc-800 my-1" />
+
+          {/* Expand to Dock button */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsCollapsed(false);
+              setIsFlyoutOpen(false);
+            }}
+            title="Закрепить боковую панель [▶]"
+            className="p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+
+          <div className="flex-1 text-[10px] font-mono [writing-mode:vertical-lr] rotate-180 text-zinc-600 tracking-wider py-2 select-none">
+            {activeLeftTab.toUpperCase()}
+          </div>
+        </aside>
+
+        {/* 2. Floating Flyout Drawer Overlay (Opens on icon click without shifting canvas) */}
+        {isFlyoutOpen && (
+          <div
+            className={`fixed left-11 top-12 bottom-7 w-76 bg-zinc-950/95 backdrop-blur-2xl border-r border-zinc-700 shadow-2xl z-40 flex flex-col transition-opacity duration-200 animate-in slide-in-from-left-4 ${
+              toolboxDragState?.isDragging ? 'opacity-30 pointer-events-none' : 'opacity-100'
+            }`}
+          >
+            {/* Flyout Header */}
+            <div className="p-2.5 border-b border-zinc-800 bg-zinc-900/90 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold text-white">
+                {activeLeftTab === 'solution' && (
+                  <>
+                    <FolderTree className="w-4 h-4 text-amber-400" />
+                    <span>Обозреватель решений</span>
+                  </>
+                )}
+                {activeLeftTab === 'toolbox' && (
+                  <>
+                    <Box className="w-4 h-4 text-blue-400" />
+                    <span>Палитра компонентов</span>
+                  </>
+                )}
+                {(activeLeftTab === 'tree' || activeLeftTab === 'outline') && (
+                  <>
+                    <Layers className="w-4 h-4 text-purple-400" />
+                    <span>Структура документа</span>
+                  </>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCollapsed(false);
+                    setIsFlyoutOpen(false);
+                  }}
+                  title="Закрепить панель (Dock)"
+                  className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded transition-colors cursor-pointer flex items-center gap-1 text-[10px]"
+                >
+                  <Pin className="w-3.5 h-3.5" />
+                  <span>Закрепить</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsFlyoutOpen(false)}
+                  title="Закрыть шторку"
+                  className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded transition-colors cursor-pointer text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Render Tab Content inside Flyout */}
+            {activeLeftTab === 'solution' && <SolutionExplorerPro />}
+
+            {activeLeftTab === 'toolbox' && (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {/* 1. Search Bar */}
+                <div className="p-2 border-b border-zinc-800/80 bg-zinc-900/40">
+                  <div className="relative flex items-center">
+                    <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Найти контрол..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-zinc-950/80 border border-zinc-800 rounded pl-8 pr-2.5 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-500 focus:outline-hidden focus:border-blue-500 transition-colors font-mono"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2 text-zinc-500 hover:text-zinc-300 text-xs"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. 1-Click Quick Templates */}
+                <div className="p-2 border-b border-zinc-800/80 bg-zinc-950/50">
+                  <div className="flex items-center gap-1 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    <span>Быстрые шаблоны в 1 клик</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => applyQuickTemplate('login')}
+                      className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-zinc-800/60 hover:bg-zinc-800 border border-zinc-700/60 text-zinc-200 hover:text-white transition-colors text-left"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      <span className="font-medium truncate">➕ Блок Авторизации</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyQuickTemplate('tableFilter')}
+                      className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-zinc-800/60 hover:bg-zinc-800 border border-zinc-700/60 text-zinc-200 hover:text-white transition-colors text-left"
+                    >
+                      <TableProperties className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span className="font-medium truncate">➕ Таблица с Фильтром</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyQuickTemplate('confirmDialog')}
+                      className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-zinc-800/60 hover:bg-zinc-800 border border-zinc-700/60 text-zinc-200 hover:text-white transition-colors text-left"
+                    >
+                      <HelpCircle className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      <span className="font-medium truncate">➕ Диалог Подтверждения</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. Control Groups Palette */}
+                <div className="flex-1 overflow-y-auto p-2 space-y-3">
+                  {TOOLBOX_GROUPS.map((group) => {
+                    const isCollapsedCat = collapsedCategories[group.key];
+                    const items = group.types
+                      .filter((type) => {
+                        const meta = COMPONENT_REGISTRY[type];
+                        if (!meta) return false;
+                        if (!searchQuery.trim()) return true;
+                        const query = searchQuery.toLowerCase();
+                        return (
+                          type.toLowerCase().includes(query) ||
+                          meta.displayName.toLowerCase().includes(query) ||
+                          meta.description.toLowerCase().includes(query)
+                        );
+                      })
+                      .map((type) => {
+                        const meta = COMPONENT_REGISTRY[type];
+                        const iconData = CONTROL_ICONS[type] || { icon: Square, emoji: '📦' };
+                        return {
+                          type,
+                          meta,
+                          emoji: iconData.emoji,
+                          icon: iconData.icon,
+                        };
+                      });
+
+                    if (items.length === 0) return null;
+
+                    return (
+                      <div key={group.key} className="space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleCategory(group.key)}
+                          className="w-full flex items-center justify-between text-zinc-400 hover:text-zinc-200 py-1 text-[11px] font-semibold border-b border-zinc-800/80 uppercase tracking-wider"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            {isCollapsedCat ? (
+                              <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
+                            )}
+                            <span className="text-zinc-300 font-bold">{group.title}</span>
+                            <span className="text-zinc-500 font-mono text-[10px]">
+                              ({items.length})
+                            </span>
+                          </div>
+                        </button>
+
+                        {!isCollapsedCat && (
+                          <div className="grid grid-cols-1 gap-1 pt-1">
+                            {items.map((item) => (
+                              <div
+                                key={item.type}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, item.type)}
+                                onDragEnd={handleDragEnd}
+                                onClick={() => addControl(item.type)}
+                                className="group flex items-center justify-between px-2.5 py-1.5 rounded bg-zinc-950/40 hover:bg-zinc-800/80 border border-zinc-800/60 hover:border-blue-500/50 cursor-grab active:cursor-grabbing transition-all text-xs text-zinc-300 hover:text-white"
+                              >
+                                <div className="flex items-center gap-2 truncate">
+                                  <span className="text-sm select-none">{item.emoji}</span>
+                                  <div className="truncate">
+                                    <span className="font-medium">{item.meta.displayName}</span>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    addControl(item.type);
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-blue-600 text-zinc-400 hover:text-white transition-all shrink-0 font-bold text-[10px]"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {(activeLeftTab === 'tree' || activeLeftTab === 'outline') && <DocumentOutlinePanel />}
+          </div>
+        )}
+      </>
     );
   }
 

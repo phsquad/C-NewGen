@@ -6,6 +6,8 @@ import { InfiniteDotGrid } from './InfiniteDotGrid';
 import { ViewportHud } from './ViewportHud';
 import { FormWindowShell } from './FormWindowShell';
 import { SignalWireOverlay } from './SignalWireOverlay';
+import { FloatingQuickPill } from './FloatingQuickPill';
+import { SmartSpacingHandles } from './SmartSpacingHandles';
 import { ViewportTransform } from '../../utils/viewportTransform';
 import { calculateSmartSnapping } from '../../utils/smartSnapping';
 import { getDefaultEventForControl } from '../../utils/defaultEvents';
@@ -25,6 +27,8 @@ export const DesignSurface: React.FC = () => {
     clearSelection,
     updateNodeBounds,
     updateMultipleNodeBounds,
+    updateNodeProperties,
+    updateMultipleNodesProperties,
     updateNodeEvents,
     setActiveRightTab,
     addControl,
@@ -99,6 +103,7 @@ export const DesignSurface: React.FC = () => {
   } | null>(null);
 
   const [showHotkeysHelp, setShowHotkeysHelp] = useState(false);
+  const [inlineEditNodeId, setInlineEditNodeId] = useState<string | null>(null);
 
   // Pro-IDE Context Menu Modals
   const [refactorModalOpen, setRefactorModalOpen] = useState(false);
@@ -246,6 +251,22 @@ export const DesignSurface: React.FC = () => {
         target.closest('[contenteditable="true"]')
       ) {
         return;
+      }
+
+      // 🎯 Smart Focus & Fit Active Form (F key or Shift+1)
+      if ((e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.altKey) || (e.shiftKey && e.code === 'Digit1')) {
+        e.preventDefault();
+        handleFitFormToViewport();
+        return;
+      }
+
+      // ✍️ Trigger Inline Text Editing on Selected Control (Enter or F2)
+      if (e.code === 'Enter' || e.code === 'F2') {
+        if (selectedNode && selectedNode.type !== 'Form') {
+          e.preventDefault();
+          setInlineEditNodeId(selectedNode.id);
+          return;
+        }
       }
 
       // 3. Delete Selected Controls (Del / Backspace)
@@ -440,6 +461,32 @@ export const DesignSurface: React.FC = () => {
       y: Math.round((containerSize.height - totalH * res.scale) / 2 - minY * res.scale),
     });
   };
+
+  // Smart Fit Active Form to Viewport (F key / Shift+1)
+  const handleFitFormToViewport = useCallback(() => {
+    const target = activeForm || allForms[0];
+    if (!target) return;
+    const titlebarHeight = 36;
+    const targetW = target.bounds.width;
+    const targetH = target.bounds.height + titlebarHeight;
+
+    const vw = containerSize.width || 1200;
+    const vh = containerSize.height || 800;
+
+    const paddingX = Math.max(60, vw * 0.12);
+    const paddingY = Math.max(60, vh * 0.12);
+
+    const scaleX = (vw - paddingX * 2) / targetW;
+    const scaleY = (vh - paddingY * 2) / targetH;
+    const targetScale = Math.min(1.25, Math.max(0.45, Math.min(scaleX, scaleY)));
+
+    const newTx = Math.round((vw - targetW * targetScale) / 2 - target.bounds.x * targetScale);
+    const newTy = Math.round((vh - targetH * targetScale) / 2 - target.bounds.y * targetScale);
+
+    setZoom(targetScale);
+    setPanOffset({ x: newTx, y: newTy });
+    addConsoleLog('System', `Холст подогнан под форму ${target.properties.name} (Масштаб: ${Math.round(targetScale * 100)}%).`);
+  }, [activeForm, allForms, containerSize, setZoom, setPanOffset, addConsoleLog]);
 
   // Reset Scale to 1:1 (100%) and Center Active Form
   const handleResetOneToOne = () => {
@@ -946,12 +993,20 @@ export const DesignSurface: React.FC = () => {
     }
   }, [addConsoleLog, setMessageBoxModal]);
 
-  // Double-Click on control: Auto-wire default primary event & open Event & Action Studio
+  // Double-Click on control: Inline Text Editing or Auto-wire default primary event
   const handleNodeDoubleClick = useCallback((nodeId: string) => {
     const node = nodes[nodeId];
     if (!node) return;
 
     selectNode(nodeId);
+
+    // If node supports text, activate inline text edit mode directly!
+    const textTypes = ['Button', 'TextBox', 'Label', 'CheckBox', 'RadioButton', 'IconButton', 'PasswordBox', 'NumericUpDown', 'GroupBox', 'ToggleSwitch'];
+    if (textTypes.includes(node.type) || node.properties.text !== undefined) {
+      setInlineEditNodeId(nodeId);
+      return;
+    }
+
     const def = getDefaultEventForControl(node.type);
     const existingHandler = node.events?.[def.eventName];
     const handlerName = existingHandler || `${node.properties.name}_${def.eventName}`;
@@ -988,6 +1043,14 @@ export const DesignSurface: React.FC = () => {
           isSelected={isSelected}
           spacePressed={spacePressed || isPanMode}
           isEmulatorMode={isEmulator}
+          isInlineEditing={inlineEditNodeId === node.id}
+          onSaveInlineText={(id, text) => {
+            beginTransaction();
+            updateNodeProperties(id, { text });
+            commitTransaction(`Изменение текста ${nodes[id]?.properties.name || ''}`);
+            setInlineEditNodeId(null);
+          }}
+          onCancelInlineEdit={() => setInlineEditNodeId(null)}
           onEventTrigger={handleEventTrigger}
           onSelect={selectNode}
           onDoubleClick={handleNodeDoubleClick}
@@ -1046,7 +1109,7 @@ export const DesignSurface: React.FC = () => {
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onZoomChange={handleZoomChange}
-        onFitToScreen={handleFitToScreen}
+        onFitToScreen={handleFitFormToViewport}
         onResetOneToOne={handleResetOneToOne}
         isPanMode={isPanMode}
         onTogglePanMode={() => setIsPanMode(!isPanMode)}
@@ -1111,6 +1174,57 @@ export const DesignSurface: React.FC = () => {
 
         {/* ⚡️ Visual Signal-Wiring Overlay (Interactive data threads & transformers) */}
         <SignalWireOverlay canvasZoom={zoom} canvasPan={panOffset} />
+
+        {/* 💊 Floating Quick Action Pill above selected control */}
+        {appMode !== 'emulator' && !isPanMode && !isPanning && !dragState && !resizeState && selectedNode && selectedNode.type !== 'Form' && (
+          <FloatingQuickPill
+            node={selectedNode}
+            selectedNodes={selectedNodes}
+            formOrigin={{
+              x: activeForm?.bounds.x || 0,
+              y: activeForm?.bounds.y || 0,
+            }}
+            zoom={1}
+            onStartInlineEdit={(id) => setInlineEditNodeId(id)}
+            onUpdateProperty={(id, key, val) => {
+              beginTransaction();
+              updateNodeProperties(id, { [key]: val });
+              commitTransaction(`Изменение свойства ${key}`);
+            }}
+            onUpdateMultipleProperties={(ids, props) => {
+              beginTransaction();
+              updateMultipleNodesProperties(ids, props);
+              commitTransaction(`Групповое изменение свойств`);
+            }}
+            onOpenNoCodeActions={(id) => {
+              const n = nodes[id];
+              const def = getDefaultEventForControl(n?.type || 'Button');
+              setEventStudioModal({
+                isOpen: true,
+                nodeId: id,
+                controlName: n?.properties.name,
+                eventName: def.eventName,
+              });
+            }}
+            onDuplicate={duplicateSelectedNodes}
+            onDelete={deleteSelectedNodes}
+          />
+        )}
+
+        {/* 📐 Figma Smart Gaps (Interactive Pink Spacing Handles) */}
+        {appMode !== 'emulator' && !isPanMode && !isPanning && !dragState && !resizeState && selectedNodes.length >= 2 && (
+          <SmartSpacingHandles
+            selectedNodes={selectedNodes.filter(n => n.type !== 'Form')}
+            formOrigin={{
+              x: activeForm?.bounds.x || 0,
+              y: activeForm?.bounds.y || 0,
+            }}
+            zoom={zoom}
+            onUpdateMultipleNodeBounds={updateMultipleNodeBounds}
+            onBeginTransaction={beginTransaction}
+            onCommitTransaction={commitTransaction}
+          />
+        )}
       </div>
 
       {/* 🩻 2.5D X-Ray Mode Floating Banner */}

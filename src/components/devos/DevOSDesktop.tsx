@@ -564,6 +564,20 @@ export const DevOSDesktop: React.FC<DevOSDesktopProps> = ({ onExitDevOS }) => {
           </span>
         </div>
 
+        {/* Shortcut 10.5: 100 Templates Gallery */}
+        <div
+          onDoubleClick={() => window.dispatchEvent(new CustomEvent('open-templates-gallery'))}
+          onClick={() => window.dispatchEvent(new CustomEvent('open-templates-gallery'))}
+          className="group flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-white/10 transition-all cursor-pointer text-center active:scale-95"
+        >
+          <div className="p-3 bg-blue-500/30 border border-amber-400/50 rounded-2xl shadow-xl backdrop-blur-md group-hover:scale-105 transition-transform ring-2 ring-amber-400/40">
+            <Sparkles className="w-7 h-7 text-amber-300 drop-shadow-md animate-pulse" />
+          </div>
+          <span className="text-[11px] font-bold text-amber-200 shadow-black drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,0.8)] leading-tight">
+            100 Шаблонов
+          </span>
+        </div>
+
         {/* Shortcut 11: Storage Manager / Trash */}
         <div
           onDoubleClick={() => setStorageModalOpen(true)}

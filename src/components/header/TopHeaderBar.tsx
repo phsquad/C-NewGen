@@ -66,6 +66,7 @@ import { GenesisWizardModal } from '../modals/GenesisWizardModal';
 import { ShareProjectModal } from '../modals/ShareProjectModal';
 import { StorageManagerModal } from '../modals/StorageManagerModal';
 import { BuildPublishWizardModal } from '../modals/BuildPublishWizardModal';
+import { TemplatesGalleryModal } from '../modals/TemplatesGalleryModal';
 import { ProjectASTLinter } from '../../utils/astLinter';
 import { OfflineFormSynthesizer } from '../../utils/OfflineFormSynthesizer';
 import { db, initDefaultProjectsIfEmpty } from '../../utils/indexedDbStorage';
@@ -131,6 +132,7 @@ export const TopHeaderBar: React.FC = () => {
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [storageModalOpen, setStorageModalOpen] = useState(false);
   const [buildWizardOpen, setBuildWizardOpen] = useState(false);
+  const [templatesGalleryOpen, setTemplatesGalleryOpen] = useState(false);
   const [beautifyNotice, setBeautifyNotice] = useState(false);
   const [projectsCount, setProjectsCount] = useState(2);
   const [diskSyncSuccess, setDiskSyncSuccess] = useState(false);
@@ -144,8 +146,15 @@ export const TopHeaderBar: React.FC = () => {
     const handleOpenBuildWizard = () => {
       setBuildWizardOpen(true);
     };
+    const handleOpenTemplatesGallery = () => {
+      setTemplatesGalleryOpen(true);
+    };
     window.addEventListener('open-build-wizard', handleOpenBuildWizard);
-    return () => window.removeEventListener('open-build-wizard', handleOpenBuildWizard);
+    window.addEventListener('open-templates-gallery', handleOpenTemplatesGallery);
+    return () => {
+      window.removeEventListener('open-build-wizard', handleOpenBuildWizard);
+      window.removeEventListener('open-templates-gallery', handleOpenTemplatesGallery);
+    };
   }, []);
 
   useEffect(() => {
@@ -305,6 +314,16 @@ export const TopHeaderBar: React.FC = () => {
               >
                 <Plus className="w-3.5 h-3.5 text-blue-400" />
                 <span>Новый проект</span>
+              </button>
+              <button
+                onClick={() => { setTemplatesGalleryOpen(true); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-amber-300 font-bold"
+              >
+                <span className="flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span>📦 Галерея 100 шаблонов</span>
+                </span>
+                <span className="text-[10px] text-amber-500/80">F4</span>
               </button>
               <button
                 onClick={() => { setProjectManagerOpen(true); setActiveMenu(null); }}
@@ -811,6 +830,10 @@ export const TopHeaderBar: React.FC = () => {
       <StorageManagerModal
         isOpen={storageModalOpen}
         onClose={() => setStorageModalOpen(false)}
+      />
+      <TemplatesGalleryModal
+        isOpen={templatesGalleryOpen}
+        onClose={() => setTemplatesGalleryOpen(false)}
       />
     </header>
   );

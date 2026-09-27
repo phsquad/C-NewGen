@@ -468,6 +468,17 @@ export const LeftSidebar: React.FC = () => {
                   <div className="grid grid-cols-1 gap-1 text-[11px]">
                     <button
                       type="button"
+                      onClick={() => window.dispatchEvent(new CustomEvent('open-templates-gallery'))}
+                      className="flex items-center justify-between px-2 py-1.5 rounded bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/50 text-amber-300 font-bold transition-colors text-left"
+                    >
+                      <span className="flex items-center gap-1.5 truncate">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
+                        <span className="truncate">📦 Галерея 100 шаблонов</span>
+                      </span>
+                      <span className="text-[10px] font-mono text-amber-400">100</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => applyQuickTemplate('login')}
                       className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-zinc-800/60 hover:bg-zinc-800 border border-zinc-700/60 text-zinc-200 hover:text-white transition-colors text-left"
                     >

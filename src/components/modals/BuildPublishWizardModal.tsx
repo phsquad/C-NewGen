@@ -622,7 +622,7 @@ export const BuildPublishWizardModal: React.FC<BuildPublishWizardModalProps> = (
                     ) : (
                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                     )}
-                    <span>{isBuilding ? 'Идет компиляция и упаковка...' : 'Сборка завершена успешно!'}</span>
+                    <span>{isBuilding ? 'Идет компиляция и упаковка...' : 'Пакет сборки сформирован!'}</span>
                   </span>
                   <span className="font-mono font-bold text-blue-400">{buildProgress}%</span>
                 </div>
@@ -635,8 +635,33 @@ export const BuildPublishWizardModal: React.FC<BuildPublishWizardModalProps> = (
                 </div>
               </div>
 
+              {/* Instructions on how to get .EXE from the downloaded ZIP */}
+              {buildComplete && (
+                <div className="p-4 bg-emerald-950/40 border border-emerald-500/40 rounded-xl space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Скачан автономный пакет сборки ({outputName}_Standalone_Package.zip)</span>
+                  </div>
+
+                  <p className="text-xs text-zinc-300 leading-relaxed">
+                    Браузер скачал ZIP-пакет с исходным C# кодом, манифестом `.csproj`, иконкой `.ico` и автоматическим скриптом сборки <strong>`build.bat`</strong>.
+                  </p>
+
+                  <div className="p-3 bg-zinc-950 rounded-lg border border-zinc-800 space-y-1.5 text-xs">
+                    <div className="font-bold text-white flex items-center gap-1.5">
+                      <span>💡 Как получить готовый .EXE файл на Windows:</span>
+                    </div>
+                    <ol className="list-decimal list-inside text-zinc-300 space-y-1 font-mono text-[11px]">
+                      <li>Распакуйте скачанный ZIP-архив в любую папку.</li>
+                      <li>Запустите файл <strong className="text-amber-400">build.bat</strong> двойным кликом.</li>
+                      <li>В созданной папке <strong className="text-cyan-400">publish/</strong> сразу появится готовый <strong className="text-emerald-400">{outputName}.exe</strong>!</li>
+                    </ol>
+                  </div>
+                </div>
+              )}
+
               {/* Build Logs Terminal */}
-              <div className="p-4 bg-black/80 border border-zinc-800 rounded-xl font-mono text-xs text-emerald-400 space-y-1 max-h-80 overflow-y-auto">
+              <div className="p-4 bg-black/80 border border-zinc-800 rounded-xl font-mono text-xs text-emerald-400 space-y-1 max-h-60 overflow-y-auto scrollbar-thin">
                 {buildLogs.length === 0 ? (
                   <div className="text-zinc-500">Нажмите «🚀 СОБРАТЬ ПРОГРАММУ» для начала сборки.</div>
                 ) : (

@@ -15,6 +15,8 @@ export interface CreatedProjectResult {
 export interface TemplateCustomizationOptions {
   customTitle?: string;
   projectName?: string;
+  authorName?: string;
+  namespaceName?: string;
   theme?: 'dark' | 'light' | 'blue' | 'purple' | 'emerald';
   primaryColor?: string;
   enableDatabase?: boolean;
@@ -85,6 +87,12 @@ export const createProjectFromTemplate = (
   if (customOptions) {
     if (customOptions.projectName) {
       project.projectName = customOptions.projectName.replace(/[^a-zA-Z0-9_]/g, '');
+    }
+    if (customOptions.authorName) {
+      project.author = customOptions.authorName;
+    }
+    if (customOptions.namespaceName) {
+      project.namespace = customOptions.namespaceName;
     }
 
     const rootForm = project.nodes[project.rootFormId];

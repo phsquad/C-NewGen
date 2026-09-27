@@ -43,7 +43,7 @@ interface DesignerContextType {
   dpi: number;
   dpr: number;
   activeLeftTab: 'solution' | 'toolbox' | 'tree' | 'outline';
-  activeRightTab: 'properties' | 'events' | 'code' | 'history';
+  activeRightTab: 'properties' | 'events' | 'code' | 'history' | 'presets';
   codeDockOpen: boolean;
   liveRunOpen: boolean;
   importModalOpen: boolean;
@@ -122,7 +122,7 @@ interface DesignerContextType {
   setCursorPos: (pos: { screenX: number; screenY: number; formX: number | null; formY: number | null }) => void;
   setFps: (fps: number) => void;
   setActiveLeftTab: (tab: 'solution' | 'toolbox' | 'tree' | 'outline') => void;
-  setActiveRightTab: (tab: 'properties' | 'events' | 'code' | 'history') => void;
+  setActiveRightTab: (tab: 'properties' | 'events' | 'code' | 'history' | 'presets') => void;
   setCodeDockOpen: (open: boolean) => void;
   setLiveRunOpen: (open: boolean) => void;
   setImportModalOpen: (open: boolean) => void;

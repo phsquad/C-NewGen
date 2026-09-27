@@ -12,9 +12,11 @@ import { DockEditor, DockStyleValue } from './DockEditor';
 import { ColorPickerEditor } from './ColorPickerEditor';
 import { FontEditor } from './FontEditor';
 import { ToggleSwitch } from './ToggleSwitch';
+import { PresetsTabContent } from './PresetsTabContent';
 import {
   Settings,
   Zap,
+  Palette,
   AlignLeft,
   AlignCenter,
   AlignRight,
@@ -463,7 +465,7 @@ export const RightSidebar: React.FC = () => {
         )}
       </div>
 
-      {/* 2. Top Tabs: [ ⚙️ Свойства ] vs [ ⚡️ События ] vs [ 🕒 История ] */}
+      {/* 2. Top Tabs: [ ⚙️ Свойства ] vs [ ⚡️ События ] vs [ 🎨 Пресеты ] vs [ 🕒 История ] */}
       <div className="flex items-center border-b border-zinc-800 bg-zinc-950/60 p-1 gap-0.5">
         <button
           type="button"
@@ -495,6 +497,19 @@ export const RightSidebar: React.FC = () => {
         </button>
         <button
           type="button"
+          onClick={() => setActiveRightTab('presets')}
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-medium rounded transition-all cursor-pointer ${
+            activeRightTab === 'presets'
+              ? 'bg-zinc-800 text-zinc-100 shadow-xs border border-zinc-700/60 font-semibold'
+              : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+          title="Пресеты стилей и сохранение в LocalStorage"
+        >
+          <Palette className="w-3.5 h-3.5 text-purple-400" />
+          <span>Пресеты</span>
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveRightTab('history')}
           className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-medium rounded transition-all cursor-pointer ${
             activeRightTab === 'history'
@@ -503,7 +518,7 @@ export const RightSidebar: React.FC = () => {
           }`}
           title="История изменений и таймлайн операций"
         >
-          <History className="w-3.5 h-3.5 text-purple-400" />
+          <History className="w-3.5 h-3.5 text-pink-400" />
           <span>История</span>
         </button>
       </div>
@@ -1713,7 +1728,10 @@ export const RightSidebar: React.FC = () => {
         </div>
       )}
 
-      {/* 6. History Timeline Tab Content */}
+      {/* 6. Style Presets Tab Content (LocalStorage Presets) */}
+      {activeRightTab === 'presets' && <PresetsTabContent />}
+
+      {/* 7. History Timeline Tab Content */}
       {activeRightTab === 'history' && (
         <div className="flex-1 flex flex-col overflow-hidden text-xs">
           {/* Quick Memory & Info Banner */}

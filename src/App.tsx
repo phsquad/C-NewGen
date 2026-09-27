@@ -139,6 +139,12 @@ const DesignerApp: React.FC = () => {
         return;
       }
 
+      if (e.key === 'F6' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b')) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('open-build-wizard'));
+        return;
+      }
+
       if (e.key === 'Escape') {
         if (liveRunOpen) {
           setLiveRunOpen(false);

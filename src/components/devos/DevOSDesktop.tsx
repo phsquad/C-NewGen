@@ -41,6 +41,7 @@ import {
   Package,
   Compass,
   FolderGit2,
+  Rocket,
 } from 'lucide-react';
 
 import { DevOSDatabaseStudio } from './DevOSDatabaseStudio';
@@ -48,6 +49,7 @@ import { DevOSNuGetStudio } from './DevOSNuGetStudio';
 import { DevOSUMLStudio } from './DevOSUMLStudio';
 import { DevOSGitStudio } from './DevOSGitStudio';
 import { DevOSNetworkHub } from './DevOSNetworkHub';
+import { BuildPublishWizardModal } from '../modals/BuildPublishWizardModal';
 import { WindowErrorBoundary } from './WindowErrorBoundary';
 import { ResxLocalizationEngine, SUPPORTED_LOCALES, ResxResourceEntry } from '../../utils/ResxLocalizationEngine';
 import { RegexPatternStudioEngine, REGEX_PRESETS } from '../../utils/RegexPatternStudioEngine';
@@ -92,6 +94,7 @@ export const DevOSDesktop: React.FC<DevOSDesktopProps> = ({ onExitDevOS }) => {
   const [synthesizerModalOpen, setSynthesizerModalOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [storageModalOpen, setStorageModalOpen] = useState(false);
+  const [buildWizardOpen, setBuildWizardOpen] = useState(false);
 
   // Clock state
   const [timeStr, setTimeStr] = useState('');
@@ -548,7 +551,20 @@ export const DevOSDesktop: React.FC<DevOSDesktopProps> = ({ onExitDevOS }) => {
           </span>
         </div>
 
-        {/* Shortcut 7: Storage Manager / Trash */}
+        {/* Shortcut 10: Build & Publish Standalone EXE */}
+        <div
+          onDoubleClick={() => setBuildWizardOpen(true)}
+          className="group flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-white/10 transition-all cursor-pointer text-center active:scale-95"
+        >
+          <div className="p-3 bg-amber-500/30 border border-amber-400/50 rounded-2xl shadow-xl backdrop-blur-md group-hover:scale-105 transition-transform ring-1 ring-amber-400/30">
+            <Rocket className="w-7 h-7 text-amber-300 drop-shadow-md" />
+          </div>
+          <span className="text-[11px] font-bold text-amber-200 shadow-black drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,0.8)] leading-tight">
+            Собрать .EXE
+          </span>
+        </div>
+
+        {/* Shortcut 11: Storage Manager / Trash */}
         <div
           onDoubleClick={() => setStorageModalOpen(true)}
           className="group flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-white/10 transition-all cursor-pointer text-center active:scale-95"
@@ -910,6 +926,20 @@ export const DevOSDesktop: React.FC<DevOSDesktopProps> = ({ onExitDevOS }) => {
                 <div className="text-[10px] text-zinc-400">McCabe / Техдолг</div>
               </div>
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setBuildWizardOpen(true);
+                setStartMenuOpen(false);
+              }}
+              className="flex items-center gap-2.5 p-2.5 bg-amber-500/15 hover:bg-amber-500/25 rounded-xl border border-amber-500/40 text-left transition-all cursor-pointer col-span-2 shadow-sm"
+            >
+              <Rocket className="w-5 h-5 text-amber-400" />
+              <div>
+                <div className="font-bold text-amber-200 text-xs">🚀 Собрать .EXE (Мастер сборщика)</div>
+                <div className="text-[10px] text-zinc-400">Single-File Self-Contained .NET 8 / Native AOT</div>
+              </div>
+            </button>
           </div>
 
           <div className="p-3 bg-zinc-950/80 border border-zinc-800 rounded-xl flex items-center justify-between">
@@ -1046,6 +1076,10 @@ export const DevOSDesktop: React.FC<DevOSDesktopProps> = ({ onExitDevOS }) => {
       </footer>
 
       {/* MODALS */}
+      <BuildPublishWizardModal
+        isOpen={buildWizardOpen}
+        onClose={() => setBuildWizardOpen(false)}
+      />
       <GenesisWizardModal
         isOpen={genesisModalOpen}
         onClose={() => setGenesisModalOpen(false)}

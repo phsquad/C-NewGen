@@ -65,6 +65,7 @@ import { ProjectAuditModal } from '../modals/ProjectAuditModal';
 import { GenesisWizardModal } from '../modals/GenesisWizardModal';
 import { ShareProjectModal } from '../modals/ShareProjectModal';
 import { StorageManagerModal } from '../modals/StorageManagerModal';
+import { BuildPublishWizardModal } from '../modals/BuildPublishWizardModal';
 import { ProjectASTLinter } from '../../utils/astLinter';
 import { OfflineFormSynthesizer } from '../../utils/OfflineFormSynthesizer';
 import { db, initDefaultProjectsIfEmpty } from '../../utils/indexedDbStorage';
@@ -129,6 +130,7 @@ export const TopHeaderBar: React.FC = () => {
   const [genesisModalOpen, setGenesisModalOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [storageModalOpen, setStorageModalOpen] = useState(false);
+  const [buildWizardOpen, setBuildWizardOpen] = useState(false);
   const [beautifyNotice, setBeautifyNotice] = useState(false);
   const [projectsCount, setProjectsCount] = useState(2);
   const [diskSyncSuccess, setDiskSyncSuccess] = useState(false);
@@ -137,6 +139,14 @@ export const TopHeaderBar: React.FC = () => {
   const [isPwaInstalled, setIsPwaInstalled] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOpenBuildWizard = () => {
+      setBuildWizardOpen(true);
+    };
+    window.addEventListener('open-build-wizard', handleOpenBuildWizard);
+    return () => window.removeEventListener('open-build-wizard', handleOpenBuildWizard);
+  }, []);
 
   useEffect(() => {
     const handleBeforeInstall = (e: Event) => {
@@ -491,7 +501,17 @@ export const TopHeaderBar: React.FC = () => {
             Сборка ▾
           </button>
           {activeMenu === 'build' && (
-            <div className="absolute top-full left-0 mt-1 w-56 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl py-1 z-50 text-[11px] font-mono">
+            <div className="absolute top-full left-0 mt-1 w-60 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl py-1 z-50 text-[11px] font-mono">
+              <button
+                onClick={() => { setBuildWizardOpen(true); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-2 hover:bg-blue-600 hover:text-white flex items-center gap-2 text-amber-300 font-bold bg-amber-500/10 border-b border-zinc-800"
+              >
+                <Rocket className="w-4 h-4 text-amber-400 shrink-0" />
+                <div>
+                  <span className="block">🚀 Мастер сборки (.EXE)</span>
+                  <span className="text-[9px] text-zinc-400 block font-normal">Single-File Self-Contained AOT</span>
+                </div>
+              </button>
               <button
                 onClick={() => { setLiveRunOpen(true); setActiveMenu(null); }}
                 className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center gap-2 text-zinc-300"
@@ -705,7 +725,17 @@ export const TopHeaderBar: React.FC = () => {
           </button>
 
           {exportMenuOpen && (
-            <div className="absolute top-full right-0 mt-1 w-60 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl py-1.5 z-50 font-mono text-[11px]">
+            <div className="absolute top-full right-0 mt-1 w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl py-1.5 z-50 font-mono text-[11px]">
+              <button
+                onClick={() => { setBuildWizardOpen(true); setExportMenuOpen(false); }}
+                className="w-full text-left px-3 py-2 hover:bg-zinc-800 text-amber-300 flex items-center gap-2 border-b border-zinc-800 bg-amber-500/10"
+              >
+                <Rocket className="w-4 h-4 text-amber-400 shrink-0" />
+                <div>
+                  <span className="font-bold text-white block">🚀 Собрать .EXE (Native AOT)</span>
+                  <span className="text-[9px] text-amber-300/80 block">Single-File Self-Contained пакет</span>
+                </div>
+              </button>
               <button
                 onClick={handleDownloadZip}
                 className="w-full text-left px-3 py-2 hover:bg-zinc-800 text-zinc-300 flex items-center gap-2"
@@ -754,6 +784,10 @@ export const TopHeaderBar: React.FC = () => {
       <HistoryJournalPanel />
 
       {/* Project Modals */}
+      <BuildPublishWizardModal
+        isOpen={buildWizardOpen}
+        onClose={() => setBuildWizardOpen(false)}
+      />
       <ProjectManagerModal
         isOpen={projectManagerOpen}
         onClose={() => setProjectManagerOpen(false)}

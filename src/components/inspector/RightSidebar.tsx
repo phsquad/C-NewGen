@@ -13,6 +13,7 @@ import { ColorPickerEditor } from './ColorPickerEditor';
 import { FontEditor } from './FontEditor';
 import { ToggleSwitch } from './ToggleSwitch';
 import { PresetsTabContent } from './PresetsTabContent';
+import { NoCodeActionsCatalogModal } from '../modals/NoCodeActionsCatalogModal';
 import {
   Settings,
   Zap,
@@ -76,6 +77,7 @@ export const RightSidebar: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortMode, setSortMode] = useState<'categorized' | 'alphabetical'>('categorized');
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
+  const [isActionsCatalogModalOpen, setIsActionsCatalogModalOpen] = useState(false);
 
   // Categories collapsed state
   const [activeCategory, setActiveCategory] = useState<Record<string, boolean>>({
@@ -1709,23 +1711,48 @@ export const RightSidebar: React.FC = () => {
               </pre>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                const evtName = activeEventSnippetName || (type === 'Form' ? 'Load' : 'Click');
-                setEventStudioModal({
-                  isOpen: true,
-                  nodeId: id,
-                  controlName: properties.name,
-                  eventName: evtName,
-                });
-              }}
-              className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-500 rounded text-xs font-bold text-white flex items-center justify-center gap-2 transition-colors shadow-md shadow-indigo-600/20 cursor-pointer"
-            >
-              <span>⚡️ Открыть 2-in-1 Event Studio ({properties.name})</span>
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const evtName = activeEventSnippetName || (type === 'Form' ? 'Load' : 'Click');
+                  setEventStudioModal({
+                    isOpen: true,
+                    nodeId: id,
+                    controlName: properties.name,
+                    eventName: evtName,
+                  });
+                }}
+                className="flex-1 py-2 px-2 bg-indigo-600 hover:bg-indigo-500 rounded text-[11px] font-bold text-white flex items-center justify-center gap-1 transition-colors shadow-md shadow-indigo-600/20 cursor-pointer"
+              >
+                <span>⚡️ Event Studio</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsActionsCatalogModalOpen(true)}
+                className="flex-1 py-2 px-2 bg-gradient-to-r from-yellow-600 to-amber-600 hover:from-yellow-500 rounded text-[11px] font-bold text-white flex items-center justify-center gap-1 transition-colors shadow-md cursor-pointer"
+              >
+                <span>🪄 100+ Действий</span>
+              </button>
+            </div>
           </div>
         </div>
+      )}
+
+      {/* No-Code Actions Catalog Modal */}
+      {isActionsCatalogModalOpen && (
+        <NoCodeActionsCatalogModal
+          onClose={() => setIsActionsCatalogModalOpen(false)}
+          onInsertCodeSnippet={(snippet) => {
+            const evtName = activeEventSnippetName || (type === 'Form' ? 'Load' : 'Click');
+            setEventStudioModal({
+              isOpen: true,
+              nodeId: id,
+              controlName: properties.name,
+              eventName: evtName,
+            });
+          }}
+        />
       )}
 
       {/* 6. Style Presets Tab Content (LocalStorage Presets) */}

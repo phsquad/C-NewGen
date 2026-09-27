@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useDesigner } from '../../context/DesignerContext';
+import { NoCodeActionsCatalogModal } from './NoCodeActionsCatalogModal';
 import {
   Save,
   RotateCcw,
@@ -289,6 +290,7 @@ export const EventActionStudioModal: React.FC<EventActionStudioModalProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [flashInserted, setFlashInserted] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isActionsCatalogOpen, setIsActionsCatalogOpen] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -387,6 +389,38 @@ export const EventActionStudioModal: React.FC<EventActionStudioModalProps> = ({
     addConsoleLog(
       'System',
       `Действие "${action.name}" успешно вставлено в обработчик ${controlName}_${eventName}.`
+    );
+  };
+
+  const handleInsertRawSnippet = (snippet: string) => {
+    let currentCode = code;
+    if (snippet.includes('await ') && !currentCode.includes('async void') && !currentCode.includes('async Task')) {
+      currentCode = currentCode.replace(/(?:private|public|protected)\s+void\s+/, 'private async void ');
+    }
+
+    const lastBraceIdx = currentCode.lastIndexOf('}');
+    let updatedCode = '';
+    if (lastBraceIdx !== -1) {
+      const before = currentCode.slice(0, lastBraceIdx);
+      const after = currentCode.slice(lastBraceIdx);
+      const indentation = '    ';
+      const formattedSnippet = snippet
+        .split('\n')
+        .map((l) => (l.startsWith('    ') ? l : `${indentation}${l}`))
+        .join('\n');
+
+      updatedCode = `${before}\n${formattedSnippet}\n${after}`;
+    } else {
+      updatedCode = `${currentCode}\n    ${snippet}\n`;
+    }
+
+    handleCodeChange(updatedCode);
+    setFlashInserted(true);
+    setTimeout(() => setFlashInserted(false), 1200);
+
+    addConsoleLog(
+      'System',
+      `Код из библиотеки 100+ действий успешно вставлен в ${controlName}_${eventName}.`
     );
   };
 
@@ -722,17 +756,24 @@ export const EventActionStudioModal: React.FC<EventActionStudioModalProps> = ({
             {/* Bottom 100+ Catalog Link */}
             <div className="p-2 border-t border-zinc-800 bg-[#16161D]">
               <button
-                onClick={() => {
-                  onClose();
-                  setActiveRightTab('events');
-                }}
-                className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                onClick={() => setIsActionsCatalogOpen(true)}
+                className="w-full py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 text-white font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
               >
-                <span>➕ Все 100+ действий...</span>
+                <span>⚡️ Все 100+ действий...</span>
               </button>
             </div>
           </div>
         </div>
+
+        {/* Modal Catalog 100+ Actions */}
+        {isActionsCatalogOpen && (
+          <NoCodeActionsCatalogModal
+            onClose={() => setIsActionsCatalogOpen(false)}
+            onInsertCodeSnippet={(snippet) => {
+              handleInsertRawSnippet(snippet);
+            }}
+          />
+        )}
 
         {/* 3. Bottom Action Parameter Config Strip */}
         <div className="h-14 bg-[#181822] border-t border-zinc-800 px-4 flex items-center justify-between text-xs shrink-0">

@@ -75,18 +75,6 @@ export const RightSidebar: React.FC = () => {
   const [sortMode, setSortMode] = useState<'categorized' | 'alphabetical'>('categorized');
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
 
-  // Auto-collapse right sidebar on small laptops (< 1400px) (Правка 16.3)
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 1400) {
-        setIsRightCollapsed(true);
-      }
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
   // Categories collapsed state
   const [activeCategory, setActiveCategory] = useState<Record<string, boolean>>({
     Appearance: true,
@@ -138,7 +126,14 @@ export const RightSidebar: React.FC = () => {
 
   // Determine if single or batch multi-selection mode
   const isMultiSelect = selectedNodes.length > 1;
-  const primaryNode = selectedNode || (selectedNodes.length > 0 ? selectedNodes[0] : null);
+  const fallbackForm =
+    project.nodes[project.activeFormId] ||
+    project.nodes[project.rootFormId] ||
+    Object.values(project.nodes).find(n => n.type === 'Form') ||
+    Object.values(project.nodes)[0] ||
+    null;
+
+  const primaryNode = selectedNode || (selectedNodes.length > 0 ? selectedNodes[0] : null) || fallbackForm;
 
   // 1. (Name) input state & strict validation
   const otherNames = useMemo(() => {
@@ -158,11 +153,11 @@ export const RightSidebar: React.FC = () => {
 
   if (!primaryNode) {
     return (
-      <aside className="w-80 bg-zinc-900 border-l border-zinc-800 flex flex-col h-full text-zinc-500 items-center justify-center p-6 text-center select-none shrink-0">
+      <aside className="w-80 bg-[#18181f] border-l border-zinc-800 flex flex-col h-full text-zinc-500 items-center justify-center p-6 text-center select-none shrink-0">
         <Settings className="w-10 h-10 mb-3 text-zinc-700 animate-pulse" />
         <p className="text-sm font-medium text-zinc-400">Нет выбранных элементов</p>
         <p className="text-xs text-zinc-600 mt-1">
-          Выберите элемент на холсте или выделите рамкой группу контролов для редактирования свойств.
+          Выберите элемент на холсте для редактирования его свойств.
         </p>
       </aside>
     );
@@ -343,14 +338,15 @@ export const RightSidebar: React.FC = () => {
               </div>
             </div>
           ) : (
-            /* Single Node Badge: 🏷 Выбран: btnSubmit (Button) */
+            /* Single Node Badge: 🏷 Выбран: btnCE (Button) | Родитель: CalculatorForm */
             <div className="flex items-center gap-1.5 truncate min-w-0">
-              <Tag className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-              <span className="text-[11px] text-zinc-400 truncate">
-                Выбран: <strong className="text-zinc-100 font-mono font-semibold">{properties.name}</strong>
-              </span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-zinc-800 text-cyan-300 font-mono shrink-0 border border-zinc-700/60">
-                {type}
+              <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+              <div className="flex items-center gap-1 truncate">
+                <span className="text-blue-400 font-bold font-mono text-xs">{properties.name}</span>
+                <span className="text-[10px] text-zinc-500 font-mono">({type})</span>
+              </div>
+              <span className="text-[9px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded border border-zinc-700/60 shrink-0">
+                {isForm ? 'Главная Форма' : 'Контрол'}
               </span>
             </div>
           )}
@@ -1456,6 +1452,34 @@ export const RightSidebar: React.FC = () => {
       {/* 5. Events Tab Content (Anatomy of C# Events Tab) */}
       {activeRightTab === 'events' && (
         <div className="flex-1 flex flex-col overflow-hidden text-xs">
+          {/* Quick No-Code Action Creator Banner */}
+          <div className="p-2.5 bg-gradient-to-r from-blue-950/60 to-indigo-950/60 border-b border-zinc-800 shrink-0 space-y-2">
+            <button
+              type="button"
+              onClick={() => {
+                const evtName = activeEventSnippetName || (type === 'Form' ? 'Load' : 'Click');
+                setEventStudioModal({
+                  isOpen: true,
+                  nodeId: id,
+                  controlName: properties.name,
+                  eventName: evtName,
+                });
+              }}
+              className="w-full py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-lg shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 transition cursor-pointer text-xs"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>🪄 Добавить No-Code действие...</span>
+            </button>
+            <div className="text-[10px] text-zinc-400 text-center flex items-center justify-center gap-1.5">
+              <span>Событие:</span>
+              <strong className="text-amber-300 font-mono">
+                {activeEventSnippetName || (type === 'Form' ? 'Load' : 'Click')}
+              </strong>
+              <span>для</span>
+              <strong className="text-blue-300 font-mono">{properties.name}</strong>
+            </div>
+          </div>
+
           {/* Events Search Bar */}
           <div className="p-2 border-b border-zinc-800 bg-zinc-950/60">
             <div className="relative">
@@ -1536,6 +1560,24 @@ export const RightSidebar: React.FC = () => {
                               </div>
 
                               <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setActiveEventSnippetName(evt.name);
+                                    setEventStudioModal({
+                                      isOpen: true,
+                                      nodeId: id,
+                                      controlName: properties.name,
+                                      eventName: evt.name,
+                                    });
+                                  }}
+                                  title={`Открыть C# редактор события ${evt.name} (F7)`}
+                                  className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-zinc-800 hover:bg-zinc-700 text-amber-400 hover:text-amber-300 border border-zinc-700 flex items-center gap-1 transition-colors cursor-pointer"
+                                >
+                                  <Zap className="w-2.5 h-2.5" />
+                                  <span>Код (F7)</span>
+                                </button>
                                 {isWired && (
                                   <button
                                     type="button"

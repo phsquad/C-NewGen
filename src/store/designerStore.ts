@@ -348,14 +348,32 @@ export const useDesignerStore = create<DesignerStoreState>((set, get) => ({
   },
 
   getSelectedNode: () => {
-    const { nodes, selectedNodeIds } = get();
-    if (!selectedNodeIds || selectedNodeIds.length === 0) return null;
-    return nodes[selectedNodeIds[0]] || null;
+    const { nodes, selectedNodeIds, activeFormId, rootFormId } = get();
+    if (selectedNodeIds && selectedNodeIds.length > 0) {
+      const targetId = selectedNodeIds[0];
+      if (nodes[targetId]) return nodes[targetId];
+      // Fallback: search by control name
+      const byName = Object.values(nodes).find(n => n.properties.name === targetId);
+      if (byName) return byName;
+    }
+    // Fallback to active or root form if nothing valid selected
+    return nodes[activeFormId] || nodes[rootFormId] || Object.values(nodes)[0] || null;
   },
 
   getSelectedNodes: () => {
-    const { nodes, selectedNodeIds } = get();
-    return selectedNodeIds.map(id => nodes[id]).filter((n): n is DesignerNode => Boolean(n));
+    const { nodes, selectedNodeIds, activeFormId, rootFormId } = get();
+    if (!selectedNodeIds || selectedNodeIds.length === 0) {
+      const fallback = nodes[activeFormId] || nodes[rootFormId];
+      return fallback ? [fallback] : [];
+    }
+    const resolved = selectedNodeIds
+      .map(id => nodes[id] || Object.values(nodes).find(n => n.properties.name === id))
+      .filter((n): n is DesignerNode => Boolean(n));
+    if (resolved.length === 0) {
+      const fallback = nodes[activeFormId] || nodes[rootFormId];
+      return fallback ? [fallback] : [];
+    }
+    return resolved;
   },
 
   getWasmStatus: () => {
@@ -365,19 +383,21 @@ export const useDesignerStore = create<DesignerStoreState>((set, get) => ({
   // Selection
   selectNode: (id: string, multi = false) => {
     set(state => {
-      if (!state.nodes[id]) return state;
+      const targetNode = state.nodes[id] || Object.values(state.nodes).find(n => n.properties.name === id);
+      if (!targetNode) return state;
+      const actualId = targetNode.id;
       let newSelection: string[];
       if (multi) {
-        if (state.selectedNodeIds.includes(id)) {
-          newSelection = state.selectedNodeIds.filter(i => i !== id);
+        if (state.selectedNodeIds.includes(actualId)) {
+          newSelection = state.selectedNodeIds.filter(i => i !== actualId);
         } else {
-          newSelection = [...state.selectedNodeIds, id];
+          newSelection = [...state.selectedNodeIds, actualId];
         }
       } else {
-        newSelection = [id];
+        newSelection = [actualId];
       }
       return {
-        selectedNodeIds: newSelection.length > 0 ? newSelection : [id],
+        selectedNodeIds: newSelection.length > 0 ? newSelection : [actualId],
       };
     });
   },

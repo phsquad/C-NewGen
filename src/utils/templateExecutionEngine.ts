@@ -1,6 +1,7 @@
 import { DesignerNode, DesignerProjectState } from '../types/ast';
 import { executeActionStepsInSandbox } from './actionSandboxRunner';
 import { ActionFlow } from '../types/actions';
+import { MinesweeperEngine } from './MinesweeperEngine';
 
 export interface CalculatorState {
   display: string;
@@ -37,6 +38,7 @@ export interface SimulationResult {
  * and user-designed forms without generic mock popups.
  */
 export class TemplateExecutionEngine {
+  private minesweeper: MinesweeperEngine | null = null;
   private calcState: CalculatorState = {
     display: '0',
     previousValue: null,
@@ -115,6 +117,53 @@ export class TemplateExecutionEngine {
     const formTitle = (project.projectName || '').toLowerCase();
     const btnText = (targetNode?.properties.text || '').trim();
     const nodeName = (targetNode?.properties.name || controlName).toLowerCase();
+
+    // === DOMAIN S: MINESWEEPER / GAME ENGINE ===
+    const isMinesweeperContext =
+      formTitle.includes('сапер') ||
+      formTitle.includes('minesweeper') ||
+      formTitle.includes('игра') ||
+      formTitle.includes('game') ||
+      nodeName.includes('startgame') ||
+      nodeName.includes('mines') ||
+      btnText.includes('ИГР') ||
+      btnText.includes('Сапер') ||
+      btnText.includes('Начать') ||
+      btnText.includes('Старт');
+
+    if (isMinesweeperContext && eventName === 'Click') {
+      if (!this.minesweeper) {
+        this.minesweeper = new MinesweeperEngine();
+      } else if (nodeName.includes('start') || btnText.includes('ИГР') || btnText.includes('Старт') || btnText.includes('Перезапуск')) {
+        this.minesweeper.initGame();
+      }
+
+      const logMessage = `🎮 [MinesweeperEngine] Сгенерировано поле 9x9 (81 ячейка). Очки: ${this.minesweeper.score}, Жизни: ${this.minesweeper.lives}`;
+
+      Object.values(nodes).forEach(node => {
+        if (node.properties.name === 'lblStatus' || node.properties.name === 'lblScore' || node.type === 'Label') {
+          if (node.properties.text?.includes('СЧЕТ') || node.properties.name === 'lblStatus') {
+            node.properties.text = `🏆 СЧЕТ: ${this.minesweeper!.score} | ❤️ ЖИЗНИ: ${this.minesweeper!.lives} | 🚩 МИН: ${this.minesweeper!.totalMines - this.minesweeper!.flagsPlaced}`;
+          }
+        }
+      });
+
+      return {
+        updatedNodes: nodes,
+        logEntry: {
+          controlName,
+          eventName,
+          handlerName,
+          message: logMessage,
+          details: `MinesweeperEngine.openCell(); // Score: ${this.minesweeper.score}, Lives: ${this.minesweeper.lives}`,
+        },
+        notification: {
+          type: 'success',
+          title: 'Сапер (Live Sandbox Engine)',
+          message: `Счет: ${this.minesweeper.score} | Жизни: ${this.minesweeper.lives} | Флаги: ${this.minesweeper.flagsPlaced}/10`,
+        },
+      };
+    }
 
     // === DOMAIN A: CALCULATOR TEMPLATE ===
     const isCalculatorContext =

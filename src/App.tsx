@@ -9,7 +9,7 @@ import { TopHeaderBar } from './components/header/TopHeaderBar';
 import { LeftSidebar } from './components/sidebar/LeftSidebar';
 import { DesignSurface } from './components/canvas/DesignSurface';
 import { RightSidebar } from './components/inspector/RightSidebar';
-import { CodePreviewPanel } from './components/code/CodePreviewPanel';
+import { DualModeCodeIDE } from './components/code/DualModeCodeIDE';
 import { StatusBar } from './components/footer/StatusBar';
 import { LiveRunModal } from './components/modals/LiveRunModal';
 import { ImportModal } from './components/modals/ImportModal';
@@ -294,8 +294,8 @@ const DesignerApp: React.FC = () => {
           {/* Microsoft VS Standard: Error List & Diagnostic Panel */}
           {errorListOpen && <ErrorListPanel onClose={() => setErrorListOpen(false)} />}
 
-          {/* Live C# Codebehind / Designer drawer */}
-          <CodePreviewPanel />
+          {/* Dual-Mode Code IDE (Compact Quick-Dock & Standalone Studio Pro) */}
+          <DualModeCodeIDE />
         </main>
 
         {/* Right Dockable Inspector Panel */}

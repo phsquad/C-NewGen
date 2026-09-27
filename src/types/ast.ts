@@ -135,6 +135,8 @@ export interface NodeProperties {
   tabPages?: string[];
   allowUserToAddRows?: boolean;
   columns?: string[];
+  rows?: (string | number)[][];
+  selectedIndex?: number;
   menuItems?: MenuItemNode[];
   toolStripItems?: ToolStripItemNode[];
   statusStripItems?: StatusStripItemNode[];

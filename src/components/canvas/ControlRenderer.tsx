@@ -15,7 +15,8 @@ import {
 interface ControlRendererProps {
   node: DesignerNode;
   isInteractive?: boolean; // True when running live test mode
-  onEventTrigger?: (eventName: string, handlerName: string, controlName: string) => void;
+  onEventTrigger?: (eventName: string, handlerName: string, controlName: string, payload?: any) => void;
+  onPropertyChange?: (propertyName: string, value: any) => void;
   activeTab?: number;
   onTabChange?: (index: number) => void;
 }
@@ -24,6 +25,7 @@ export const ControlRenderer: React.FC<ControlRendererProps> = ({
   node,
   isInteractive = false,
   onEventTrigger,
+  onPropertyChange,
   activeTab = 0,
   onTabChange,
 }) => {
@@ -80,13 +82,14 @@ export const ControlRenderer: React.FC<ControlRendererProps> = ({
         >
           {isInteractive ? (
             <input
-              type="text"
-              defaultValue={properties.text || ''}
+              type={properties.useSystemPasswordChar ? 'password' : 'text'}
+              value={properties.text ?? ''}
               placeholder={properties.placeholder || ''}
               disabled={!properties.enabled}
               onChange={e => {
+                onPropertyChange?.('text', e.target.value);
                 if (events?.TextChanged) {
-                  onEventTrigger?.('TextChanged', events.TextChanged, properties.name);
+                  onEventTrigger?.('TextChanged', events.TextChanged, properties.name, { text: e.target.value });
                 }
               }}
               style={fontStyle}
@@ -118,8 +121,10 @@ export const ControlRenderer: React.FC<ControlRendererProps> = ({
           onClick={e => {
             if (isInteractive) {
               e.stopPropagation();
+              const nextVal = !properties.checked;
+              onPropertyChange?.('checked', nextVal);
               if (events?.CheckedChanged) {
-                onEventTrigger?.('CheckedChanged', events.CheckedChanged, properties.name);
+                onEventTrigger?.('CheckedChanged', events.CheckedChanged, properties.name, { checked: nextVal });
               }
             }
           }}
@@ -334,11 +339,13 @@ export const ControlRenderer: React.FC<ControlRendererProps> = ({
       const cols = properties.columns && properties.columns.length > 0
         ? properties.columns
         : ['Id', 'Имя', 'Должность', 'Зарплата'];
-      const sampleRows = [
-        ['1', 'Александр В.', 'Senior C# Dev', '$120,000'],
-        ['2', 'Елена М.', 'UI/UX Lead', '$95,000'],
-        ['3', 'Дмитрий С.', 'Backend Eng', '$88,000'],
-      ];
+      const currentGridRows = (properties.rows && properties.rows.length > 0)
+        ? properties.rows
+        : [
+            ['1', 'Александр В.', 'Senior C# Dev', '$120,000'],
+            ['2', 'Елена М.', 'UI/UX Lead', '$95,000'],
+            ['3', 'Дмитрий С.', 'Backend Eng', '$88,000'],
+          ];
 
       return (
         <div
@@ -363,12 +370,20 @@ export const ControlRenderer: React.FC<ControlRendererProps> = ({
 
           {/* Table Rows */}
           <div className="flex-1 overflow-auto divide-y divide-zinc-200 dark:divide-zinc-800 font-mono text-[10px]">
-            {sampleRows.map((row, rIdx) => {
-              const isSelected = rIdx === 0;
+            {currentGridRows.map((row, rIdx) => {
+              const isSelected = rIdx === (properties.selectedIndex ?? 0);
               return (
                 <div
                   key={rIdx}
-                  className={`flex items-center ${
+                  onClick={() => {
+                    if (isInteractive) {
+                      onPropertyChange?.('selectedIndex', rIdx);
+                      if (events?.CellClick) {
+                        onEventTrigger?.('CellClick', events.CellClick, properties.name, { rowIndex: rIdx, row });
+                      }
+                    }
+                  }}
+                  className={`flex items-center cursor-pointer ${
                     isSelected
                       ? 'bg-blue-600 text-white'
                       : 'hover:bg-zinc-50 dark:hover:bg-zinc-850 text-zinc-800 dark:text-zinc-200'

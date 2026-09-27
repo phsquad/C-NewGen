@@ -9,6 +9,7 @@ export interface SavedProject {
   createdAt: number;           // Метка времени создания
   previewImage?: string;       // Base64 миниатюра формы
   isPinned?: boolean;          // Закрепленный проект
+  isDemo?: boolean;            // Демо-проект / Стандартный образец
   tags?: string[];             // Теги: WinForms, SQLite, Web, etc.
   framework?: string;          // Target framework
   description?: string;        // Описание проекта
@@ -55,7 +56,8 @@ export async function initDefaultProjectsIfEmpty(): Promise<void> {
           createdAt: now - 3600 * 1000 * 48,
           updatedAt: now - 60 * 1000 * 15,
           isPinned: true,
-          tags: ['WinForms', 'Лабораторная', 'Калькулятор'],
+          isDemo: true,
+          tags: ['WinForms', 'Лабораторная', 'Калькулятор', 'ДЕМО'],
           framework: 'WinForms',
           description: 'Инженерный калькулятор с поддержкой вычислений и расширенной клавиатурой',
           state: defaultState1,
@@ -66,7 +68,8 @@ export async function initDefaultProjectsIfEmpty(): Promise<void> {
           createdAt: now - 3600 * 1000 * 24,
           updatedAt: now - 3600 * 1000 * 2,
           isPinned: true,
-          tags: ['WinForms', 'SQLite', 'Безопасность', 'Курсовая'],
+          isDemo: true,
+          tags: ['WinForms', 'SQLite', 'Безопасность', 'Курсовая', 'ДЕМО'],
           framework: 'WinForms',
           description: 'Модуль авторизации пользователей с валидацией полей и связкой с БД SQLite',
           state: defaultState2,
@@ -77,7 +80,8 @@ export async function initDefaultProjectsIfEmpty(): Promise<void> {
           createdAt: now - 3600 * 1000 * 72,
           updatedAt: now - 3600 * 1000 * 8,
           isPinned: false,
-          tags: ['WinForms', 'Дашборд', 'Бизнес'],
+          isDemo: true,
+          tags: ['WinForms', 'Дашборд', 'Бизнес', 'ДЕМО'],
           framework: 'WinForms',
           description: 'Аналитическая панель с метриками KPI, выручкой и мониторингом сессий',
           state: defaultState3,
@@ -88,7 +92,8 @@ export async function initDefaultProjectsIfEmpty(): Promise<void> {
           createdAt: now - 3600 * 1000 * 96,
           updatedAt: now - 3600 * 1000 * 24,
           isPinned: false,
-          tags: ['WinForms', 'MDI', 'Мульти-окна'],
+          isDemo: true,
+          tags: ['WinForms', 'MDI', 'Мульти-окна', 'ДЕМО'],
           framework: 'WinForms',
           description: 'Многооконный интерфейс с переключением форм и скинами Win11/Linux',
           state: defaultState4,

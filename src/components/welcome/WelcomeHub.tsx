@@ -13,19 +13,16 @@ import {
   createLoginTemplate,
   createCalculatorTemplate,
   createDashboardTemplate,
-  createSettingsTemplate,
   createEmptyProject,
   createWarehouseCrudTemplate,
 } from '../../utils/templates';
 import {
-  LocalStorageSavedProject,
-  loadProjectsFromLocalStorageList,
-  saveProjectToLocalStorageList,
-  deleteProjectFromLocalStorageList,
   setActiveProjectId,
   downloadFile,
 } from '../../utils/storage';
 import { DesignerProjectState } from '../../types/ast';
+import { createProjectFromTemplate } from '../../utils/templateEngine';
+import { TemplatesGalleryModal } from '../modals/TemplatesGalleryModal';
 import {
   FolderOpen,
   Plus,
@@ -36,27 +33,17 @@ import {
   HardDrive,
   Pin,
   Search,
-  ExternalLink,
   RefreshCw,
   GitBranch,
   Sparkles,
-  Layers,
-  FileCode,
-  Layout,
-  Calculator,
-  Lock,
-  Database,
-  Grid,
-  Check,
   X,
   ArrowRight,
-  Monitor,
-  AppWindow,
   Package,
   Clock,
-  Terminal,
   ChevronRight,
   Code2,
+  Play,
+  FileCode,
 } from 'lucide-react';
 
 interface WelcomeHubProps {
@@ -67,7 +54,6 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
   const {
     project,
     setProjectState,
-    saveProject,
     addConsoleLog,
   } = useDesigner();
 
@@ -78,6 +64,7 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [activeModal, setActiveModal] = useState<'create' | 'templates' | 'clone' | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
 
   // New Project Wizard Form State
   const [newProjName, setNewProjName] = useState(`Лабораторная_${new Date().toLocaleDateString().replace(/\./g, '_')}`);
@@ -116,28 +103,53 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
     loadProjects();
   }, []);
 
+  // Helper: Detect Demo Projects
+  const isDemoProject = (p: SavedProject) => {
+    return (
+      !!p.isDemo ||
+      p.id.startsWith('proj_lab1') ||
+      p.id.startsWith('proj_coursework') ||
+      p.id.startsWith('proj_dashboard') ||
+      p.id.startsWith('proj_multiform') ||
+      p.tags?.includes('ДЕМО') ||
+      p.tags?.includes('Демо')
+    );
+  };
+
+  // Last Active Project for Smart Header Button
+  const lastActiveProject = useMemo(() => {
+    if (dbProjects.length === 0) return null;
+    return [...dbProjects].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+  }, [dbProjects]);
+
+  // Counts for tabs
+  const demoProjectsCount = useMemo(() => dbProjects.filter(isDemoProject).length, [dbProjects]);
+  const myProjectsCount = useMemo(() => dbProjects.filter((p) => !isDemoProject(p)).length, [dbProjects]);
+
   // Filtered & Sorted Projects
   const filteredProjects = useMemo(() => {
-    return dbProjects.filter(p => {
-      const matchSearch =
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (p.tags && p.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase())));
+    return dbProjects
+      .filter((p) => {
+        const matchSearch =
+          p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (p.tags && p.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())));
 
-      if (!matchSearch) return false;
+        if (!matchSearch) return false;
 
-      if (filterTag === 'pinned') return !!p.isPinned;
-      if (filterTag === 'winforms') return p.framework === 'WinForms' || p.tags?.includes('WinForms');
-      if (filterTag === 'sqlite') return p.tags?.includes('SQLite') || p.tags?.includes('БД');
-      if (filterTag === 'web') return p.framework === 'Web' || p.tags?.includes('Web');
+        if (filterTag === 'pinned') return !!p.isPinned;
+        if (filterTag === 'demo') return isDemoProject(p);
+        if (filterTag === 'my') return !isDemoProject(p);
+        if (filterTag === 'winforms') return p.framework === 'WinForms' || p.tags?.includes('WinForms');
+        if (filterTag === 'sqlite') return p.tags?.includes('SQLite') || p.tags?.includes('БД');
 
-      return true;
-    }).sort((a, b) => {
-      // Pinned items stay on top
-      if (a.isPinned && !b.isPinned) return -1;
-      if (!a.isPinned && b.isPinned) return 1;
-      return b.updatedAt - a.updatedAt;
-    });
+        return true;
+      })
+      .sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return b.updatedAt - a.updatedAt;
+      });
   }, [dbProjects, searchQuery, filterTag]);
 
   // Open existing project
@@ -162,7 +174,8 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
       createdAt: Date.now(),
       updatedAt: Date.now(),
       isPinned: false,
-      tags: savedProj.tags || ['WinForms'],
+      isDemo: false,
+      tags: savedProj.tags ? savedProj.tags.filter((t) => t !== 'ДЕМО') : ['WinForms'],
       framework: savedProj.framework || 'WinForms',
       description: savedProj.description,
       state: dupState,
@@ -199,6 +212,82 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
     const jsonStr = JSON.stringify(savedProj.state, null, 2);
     downloadFile(`${savedProj.name}.devosproj`, jsonStr, 'application/json');
     showToast(`Файл «${savedProj.name}.devosproj» скачан`);
+  };
+
+  // Global File Import logic (.json, .devosproj, .cs)
+  const processFileImport = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const content = event.target?.result as string;
+        let parsed: any = null;
+
+        try {
+          parsed = JSON.parse(content);
+        } catch {
+          if (file.name.endsWith('.cs')) {
+            parsed = createEmptyProject();
+            parsed.projectName = file.name.replace(/\.[^/.]+$/, '');
+          }
+        }
+
+        if (parsed && parsed.nodes) {
+          const projName = parsed.projectName || file.name.replace(/\.[^/.]+$/, '');
+          parsed.projectName = projName;
+
+          const newId = `proj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          await db.projects.add({
+            id: newId,
+            name: projName,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            isPinned: false,
+            isDemo: false,
+            tags: ['Импорт', parsed.targetFramework || 'WinForms'],
+            framework: parsed.targetFramework || 'WinForms',
+            description: `Импортирован из файла ${file.name}`,
+            state: parsed,
+          });
+
+          await loadProjects();
+          setActiveProjectId(projName);
+          setProjectState(parsed);
+          showToast(`Проект «${projName}» импортирован!`);
+          onLaunchProject();
+        } else {
+          showToast('Неверная структура UI-AST файла');
+        }
+      } catch (err) {
+        showToast('Ошибка импорта файла');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Drag and Drop Event Handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDraggingOver) setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+      setIsDraggingOver(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processFileImport(file);
+    }
   };
 
   // Handle New Project Wizard submission
@@ -239,6 +328,7 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
       createdAt: Date.now(),
       updatedAt: Date.now(),
       isPinned: false,
+      isDemo: false,
       tags: [newProjFramework, newProjTemplate.toUpperCase()],
       framework: newProjFramework,
       description: `Создан на основе шаблона: ${newProjTemplate}`,
@@ -249,103 +339,6 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
     setProjectState(baseState);
     setActiveModal(null);
     onLaunchProject();
-  };
-
-  // Handle instant template launch from gallery
-  const handleLaunchTemplate = async (templateKey: 'calc' | 'login' | 'warehouse' | 'dashboard' | 'multi') => {
-    let tplState: DesignerProjectState;
-    let tplName = '';
-    let tags: string[] = ['WinForms'];
-
-    switch (templateKey) {
-      case 'calc':
-        tplState = createCalculatorTemplate();
-        tplName = 'Лабораторная (Калькулятор & Матрицы)';
-        tags = ['WinForms', 'Калькулятор', 'Лабораторная'];
-        break;
-      case 'login':
-        tplState = createLoginTemplate();
-        tplName = 'Авторизация и Пользователи (SQLite)';
-        tags = ['WinForms', 'SQLite', 'Безопасность'];
-        break;
-      case 'warehouse':
-        tplState = createWarehouseCrudTemplate();
-        tplName = 'Склад и Заказы (Master-Detail Grid)';
-        tags = ['WinForms', 'SQLite', 'CRUD', 'Таблицы'];
-        break;
-      case 'dashboard':
-        tplState = createDashboardTemplate();
-        tplName = 'Мониторинг и Дашборд (Analytics)';
-        tags = ['WinForms', 'Дашборд', 'Бизнес'];
-        break;
-      case 'multi':
-        tplState = createMultiFormTemplate();
-        tplName = 'MDI Мульти-оконное Приложение';
-        tags = ['WinForms', 'MDI', 'Мульти-окна'];
-        break;
-    }
-
-    tplState.projectName = tplName;
-    const newId = `proj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-
-    await db.projects.add({
-      id: newId,
-      name: tplName,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      isPinned: false,
-      tags,
-      framework: 'WinForms',
-      description: `Архитектурный шаблон ${tplName}`,
-      state: tplState,
-    });
-
-    setActiveProjectId(tplName);
-    setProjectState(tplState);
-    setActiveModal(null);
-    onLaunchProject();
-  };
-
-  // File Upload (.json / .devosproj)
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const content = event.target?.result as string;
-        const parsed = JSON.parse(content);
-
-        if (parsed.rootFormId && parsed.nodes) {
-          const projName = parsed.projectName || file.name.replace(/\.[^/.]+$/, '');
-          parsed.projectName = projName;
-
-          const newId = `proj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-          await db.projects.add({
-            id: newId,
-            name: projName,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-            isPinned: false,
-            tags: ['Импорт', parsed.targetFramework || 'WinForms'],
-            framework: parsed.targetFramework || 'WinForms',
-            description: `Импортирован из файла ${file.name}`,
-            state: parsed,
-          });
-
-          setActiveProjectId(projName);
-          setProjectState(parsed);
-          showToast(`Проект «${projName}» успешно загружен!`);
-          onLaunchProject();
-        } else {
-          showToast('Неверный формат UI-AST в файле');
-        }
-      } catch (err) {
-        showToast('Ошибка при чтении файла');
-      }
-    };
-    reader.readAsText(file);
   };
 
   // Clone from Git or Raw JSON snippet
@@ -362,6 +355,7 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
             createdAt: Date.now(),
             updatedAt: Date.now(),
             isPinned: false,
+            isDemo: false,
             tags: ['Git/JSON', parsed.targetFramework || 'WinForms'],
             framework: parsed.targetFramework || 'WinForms',
             state: parsed,
@@ -379,7 +373,6 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
     }
 
     if (cloneUrl.trim()) {
-      // Simulate Git repository synthesis
       const synthesizedState = createMultiFormTemplate();
       const repoName = cloneUrl.split('/').pop()?.replace('.git', '') || 'GitProject';
       synthesizedState.projectName = repoName;
@@ -391,6 +384,7 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
         isPinned: false,
+        isDemo: false,
         tags: ['GitHub', 'Синтез'],
         framework: 'WinForms',
         description: `Клонировано из репозитория ${cloneUrl}`,
@@ -405,8 +399,28 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
   };
 
   return (
-    <div className="w-screen h-screen flex flex-col bg-[#09090b] text-zinc-100 overflow-hidden font-sans select-none">
-      {/* 1. TOP HEADER BANNER (Visual Studio / JetBrains Style) */}
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className="w-screen h-screen flex flex-col bg-[#09090b] text-zinc-100 overflow-hidden font-sans select-none relative"
+    >
+      {/* GLOBAL DRAG AND DROP OVERLAY */}
+      {isDraggingOver && (
+        <div className="fixed inset-0 bg-blue-950/80 backdrop-blur-md z-[999999] border-4 border-dashed border-blue-400 m-4 rounded-3xl flex flex-col items-center justify-center text-white pointer-events-none animate-in fade-in duration-150">
+          <div className="p-6 bg-zinc-950/90 border border-blue-500/50 rounded-2xl flex flex-col items-center shadow-2xl space-y-3">
+            <div className="w-16 h-16 rounded-2xl bg-blue-600/30 text-blue-400 border border-blue-400/50 flex items-center justify-center animate-bounce">
+              <Upload className="w-8 h-8" />
+            </div>
+            <h2 className="text-lg font-bold">Отпустите файл для мгновенного импорта</h2>
+            <p className="text-xs text-zinc-300 font-mono">
+              Поддерживаются файлы: .devosproj, .json, .cs, .zip
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 1. TOP HEADER BANNER */}
       <header className="h-14 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
@@ -430,30 +444,39 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
           </div>
         </div>
 
-        {/* Right Header Status & Quick Actions */}
+        {/* Right Header Status & Dynamic Smart Action Button */}
         <div className="flex items-center gap-3">
-          <div className="text-right hidden sm:block">
+          <div className="text-right hidden md:block">
             <div className="text-[11px] font-mono text-zinc-400 flex items-center gap-1.5 justify-end">
               <HardDrive className="w-3.5 h-3.5 text-zinc-500" />
-              <span>База IndexedDB: {storageSizeKb} КБ</span>
+              <span>База: {storageSizeKb} КБ</span>
               <span className="text-zinc-600">·</span>
               <span>Проектов: {dbProjects.length}</span>
             </div>
             <div className="text-[10px] text-emerald-400 font-medium">
-              ● Все данные сохраняются локально в вашем браузере
+              ● Все данные сохраняются локально в IndexedDB
             </div>
           </div>
 
-          {/* Quick Resume Button */}
-          {project && (
-            <button
-              onClick={onLaunchProject}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-lg shadow-blue-600/20 transition cursor-pointer"
-            >
-              <span>⚡️ Продолжить работу</span>
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          )}
+          {/* ⚡️ Smart "Continue" Button */}
+          <button
+            onClick={() => {
+              if (lastActiveProject) {
+                handleOpenProject(lastActiveProject);
+              } else {
+                setActiveModal('create');
+              }
+            }}
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-600/25 flex items-center gap-2 transition active:scale-95 cursor-pointer"
+          >
+            <span>⚡️</span>
+            <span>
+              {lastActiveProject
+                ? `Продолжить: ${lastActiveProject.name} (${formatRelativeTime(lastActiveProject.updatedAt)})`
+                : '➕ Создать первый проект'}
+            </span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       </header>
 
@@ -496,21 +519,22 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
             </div>
 
             {/* Filter Chips */}
-            <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] pt-1">
+            <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] pt-1 scrollbar-thin">
               {[
-                { key: 'all', label: 'Все' },
+                { key: 'all', label: `Все (${dbProjects.length})` },
                 { key: 'pinned', label: '📌 Закрепленные' },
+                { key: 'demo', label: `✨ Демо-примеры (${demoProjectsCount})` },
+                { key: 'my', label: `🗂 Мои проекты (${myProjectsCount})` },
                 { key: 'winforms', label: 'WinForms' },
                 { key: 'sqlite', label: '🗄 SQLite' },
-                { key: 'web', label: 'Web SPA' },
-              ].map(tab => (
+              ].map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setFilterTag(tab.key)}
                   className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer whitespace-nowrap ${
                     filterTag === tab.key
                       ? 'bg-blue-600/20 text-blue-400 border border-blue-500/40 font-semibold'
-                      : 'bg-zinc-900/60 text-zinc-400 hover:bg-zinc-850 hover:text-zinc-300 border border-zinc-800/60'
+                      : 'bg-zinc-900/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-300 border border-zinc-800/60'
                   }`}
                 >
                   {tab.label}
@@ -550,7 +574,8 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
             ) : (
               filteredProjects.map((p) => {
                 const nodeCount = Object.keys(p.state?.nodes || {}).length;
-                const formCount = Object.values(p.state?.nodes || {}).filter(n => n.type === 'Form').length;
+                const formCount = Object.values(p.state?.nodes || {}).filter((n) => n.type === 'Form').length;
+                const isDemo = isDemoProject(p);
 
                 return (
                   <div
@@ -562,13 +587,22 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
                         : 'bg-zinc-900/40 border-zinc-800/70 hover:bg-zinc-900/80 hover:border-zinc-700'
                     }`}
                   >
-                    {/* Top Row: Title + Pin button */}
+                    {/* Top Row: Title + Badges + Pin button */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <h3 className="text-xs font-bold text-zinc-100 truncate group-hover:text-blue-400 transition">
                             {p.name}
                           </h3>
+                          {isDemo ? (
+                            <span className="text-[9px] bg-blue-950/90 text-blue-300 border border-blue-800/60 px-1.5 py-0.2 rounded font-mono font-bold shrink-0">
+                              ✨ ДЕМО
+                            </span>
+                          ) : (
+                            <span className="text-[9px] bg-emerald-950/90 text-emerald-300 border border-emerald-800/60 px-1.5 py-0.2 rounded font-mono font-bold shrink-0">
+                              🗂 МОЙ
+                            </span>
+                          )}
                           {p.isPinned && (
                             <span className="text-[10px] text-amber-400 shrink-0" title="Закреплен">
                               📌
@@ -616,31 +650,42 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
                       <span className="shrink-0">{formatRelativeTime(p.updatedAt)}</span>
                     </div>
 
-                    {/* Hover Quick Action Buttons */}
-                    <div className="absolute right-3 bottom-2.5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-zinc-950/90 backdrop-blur-md px-1 py-0.5 rounded-lg border border-zinc-800 shadow-md">
+                    {/* 🎯 Hover Action Bar (4 Quick Action Icons) */}
+                    <div className="absolute right-3 bottom-2.5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-zinc-950/95 backdrop-blur-md px-1.5 py-0.5 rounded-lg border border-zinc-700/80 shadow-xl">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenProject(p);
+                        }}
+                        className="p-1 hover:bg-blue-600/30 text-blue-400 hover:text-white rounded transition"
+                        title="🚀 Мгновенно открыть"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                      </button>
                       <button
                         type="button"
                         onClick={(e) => handleDuplicateProject(p, e)}
-                        className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 rounded"
-                        title="Дублировать проект"
+                        className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 rounded transition"
+                        title="📑 Создать копию"
                       >
-                        <Copy className="w-3 h-3" />
+                        <Copy className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={(e) => handleExportProject(p, e)}
-                        className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 rounded"
-                        title="Скачать .devosproj"
+                        className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 rounded transition"
+                        title="💾 Скачать .devosproj"
                       >
-                        <Download className="w-3 h-3" />
+                        <Download className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={(e) => handleDeleteProject(p, e)}
-                        className="p-1 hover:bg-red-950/60 text-zinc-400 hover:text-red-400 rounded"
-                        title="Удалить"
+                        className="p-1 hover:bg-rose-950/80 text-zinc-400 hover:text-rose-400 rounded transition"
+                        title="🗑 Удалить проект"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -691,7 +736,7 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
                 </div>
               </button>
 
-              {/* Tile 2: 📦 Галерея готовых шаблонов */}
+              {/* Tile 2: 📦 Галерея шаблонов (100+) */}
               <button
                 type="button"
                 onClick={() => setActiveModal('templates')}
@@ -700,20 +745,20 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
                 <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-600/5 rounded-full blur-2xl group-hover:bg-emerald-600/10 transition" />
                 <div className="space-y-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition">
-                    <Sparkles className="w-5 h-5" />
+                    <Sparkles className="w-5 h-5 text-amber-400 animate-pulse" />
                   </div>
                   <div>
                     <h3 className="font-bold text-sm text-zinc-100 group-hover:text-emerald-400 transition flex items-center justify-between">
-                      <span>Галерея шаблонов</span>
+                      <span>Галерея шаблонов (100+)</span>
                       <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:text-emerald-400 group-hover:translate-x-1 transition" />
                     </h3>
                     <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                      Готовые архитектуры: Авторизация, Инженерный калькулятор, Склад SQLite, Мониторинг, MDI.
+                      100+ готовых архитектур: Бизнес, Игры, Наука, Сети, IoT, СУБД SQLite, Алгоритмы.
                     </p>
                   </div>
                 </div>
                 <div className="text-[10px] font-mono text-emerald-400/80 font-semibold pt-3 flex items-center gap-1">
-                  <span>5 готовых решений</span>
+                  <span>100+ решений с кастомизатором</span>
                 </div>
               </button>
 
@@ -734,12 +779,12 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
                       <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:text-amber-400 group-hover:translate-x-1 transition" />
                     </h3>
                     <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                      Загрузите файл проекта .devosproj, .json схему UI-AST или исходник .Designer.cs.
+                      Перетащите файл .devosproj, .json схему UI-AST или исходник .Designer.cs прямо в окно.
                     </p>
                   </div>
                 </div>
                 <div className="text-[10px] font-mono text-amber-400/80 font-semibold pt-3 flex items-center gap-1">
-                  <span>.devosproj, .json, .cs</span>
+                  <span>.devosproj, .json, .cs (Drag & Drop)</span>
                 </div>
               </button>
 
@@ -748,7 +793,10 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
                 ref={fileInputRef}
                 type="file"
                 accept=".json,.devosproj,.cs,.txt"
-                onChange={handleFileUpload}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) processFileImport(file);
+                }}
                 className="hidden"
               />
 
@@ -779,7 +827,7 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
               </button>
             </div>
 
-            {/* Bottom Quick Feature Highlights (The 5 Next-Gen Mechanics) */}
+            {/* Bottom Quick Feature Highlights */}
             <div className="p-4 rounded-2xl bg-zinc-950/60 border border-zinc-800/80 space-y-2.5">
               <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider font-bold flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-blue-400" />
@@ -874,7 +922,7 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
                     { key: 'WinForms', label: 'C# WinForms (.NET 9)' },
                     { key: 'Web', label: 'Modern Web SPA' },
                     { key: 'FullStack', label: 'FullStack Python + C#' },
-                  ].map(f => (
+                  ].map((f) => (
                     <button
                       key={f.key}
                       type="button"
@@ -901,7 +949,7 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
                     { key: 'warehouse', title: '📦 Склад и заказы', desc: 'DataGridView + Карточка товара' },
                     { key: 'dashboard', title: '📊 Дашборд', desc: 'KPI метрики и график' },
                     { key: 'multi', title: '🪟 Мульти-окна MDI', desc: '2 формы со скинами' },
-                  ].map(t => (
+                  ].map((t) => (
                     <button
                       key={t.key}
                       type="button"
@@ -940,131 +988,17 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
         </div>
       )}
 
-      {/* 4. MODAL: TEMPLATE GALLERY */}
+      {/* 4. MODAL: FULL 100-TEMPLATE GALLERY WITH LIVE CUSTOMIZER */}
       {activeModal === 'templates' && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-3xl w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-100 flex flex-col">
-            <div className="px-5 py-4 bg-zinc-950 border-b border-zinc-800 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-emerald-400" />
-                <h3 className="font-bold text-sm text-white">Галерея архитектурных решений & шаблонов</h3>
-              </div>
-              <button
-                onClick={() => setActiveModal(null)}
-                className="text-zinc-500 hover:text-white p-1 rounded-lg"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[75vh] overflow-y-auto">
-              {/* Template 1: Calc */}
-              <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950/60 hover:border-blue-500/50 flex flex-col justify-between space-y-3">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xl">🧮</span>
-                    <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-mono">16 кнопок</span>
-                  </div>
-                  <h4 className="font-bold text-sm text-zinc-100">Инженерный калькулятор</h4>
-                  <p className="text-xs text-zinc-400 leading-relaxed">
-                    Готовый математический модуль: ввод чисел, базовые операции, очистка дисплея и C# события.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleLaunchTemplate('calc')}
-                  className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition cursor-pointer"
-                >
-                  Запустить проект
-                </button>
-              </div>
-
-              {/* Template 2: Auth + SQLite */}
-              <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950/60 hover:border-emerald-500/50 flex flex-col justify-between space-y-3">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xl">🔐</span>
-                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-mono">SQLite + Auth</span>
-                  </div>
-                  <h4 className="font-bold text-sm text-zinc-100">Авторизация и Пользователи</h4>
-                  <p className="text-xs text-zinc-400 leading-relaxed">
-                    Форма входа с валидацией логина, скрытием пароля (PasswordBox), чекбоксом запоминания и связью с БД.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleLaunchTemplate('login')}
-                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition cursor-pointer"
-                >
-                  Запустить проект
-                </button>
-              </div>
-
-              {/* Template 3: Warehouse CRUD */}
-              <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950/60 hover:border-cyan-500/50 flex flex-col justify-between space-y-3">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xl">📦</span>
-                    <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 text-[10px] font-mono">DataGridView CRUD</span>
-                  </div>
-                  <h4 className="font-bold text-sm text-zinc-100">Склад & Заказы (Master-Detail)</h4>
-                  <p className="text-xs text-zinc-400 leading-relaxed">
-                    Таблица товаров, панель быстрого поиска, форма детального редактирования цены и остатка с нитями сигналов.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleLaunchTemplate('warehouse')}
-                  className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold transition cursor-pointer"
-                >
-                  Запустить проект
-                </button>
-              </div>
-
-              {/* Template 4: Dashboard */}
-              <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950/60 hover:border-amber-500/50 flex flex-col justify-between space-y-3">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xl">📊</span>
-                    <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[10px] font-mono">Metrics & Cards</span>
-                  </div>
-                  <h4 className="font-bold text-sm text-zinc-100">Мониторинг и Дашборд</h4>
-                  <p className="text-xs text-zinc-400 leading-relaxed">
-                    Бизнес-интерфейс: боковое меню навигации, KPI карточки выручки и сессий, индикатор загрузки ProgressBar.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleLaunchTemplate('dashboard')}
-                  className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition cursor-pointer"
-                >
-                  Запустить проект
-                </button>
-              </div>
-
-              {/* Template 5: Multi-Form MDI */}
-              <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950/60 hover:border-purple-500/50 flex flex-col justify-between space-y-3 sm:col-span-2">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xl">🪟</span>
-                    <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[10px] font-mono">Multi-Form Context</span>
-                  </div>
-                  <h4 className="font-bold text-sm text-zinc-100">MDI Мульти-оконное Приложение</h4>
-                  <p className="text-xs text-zinc-400 leading-relaxed">
-                    Два независимых окна на холсте: главное окно со скином Win11 Mica и дочерняя форма авторизации со скином Linux GTK.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleLaunchTemplate('multi')}
-                  className="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold transition cursor-pointer"
-                >
-                  Запустить проект
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <TemplatesGalleryModal
+          isOpen={true}
+          onClose={() => setActiveModal(null)}
+          onSelectTemplate={(templateId) => {
+            createProjectFromTemplate(templateId, true);
+            setActiveModal(null);
+            onLaunchProject();
+          }}
+        />
       )}
 
       {/* 5. MODAL: CLONE FROM GIT / PASTE JSON */}

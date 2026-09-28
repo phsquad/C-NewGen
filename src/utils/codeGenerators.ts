@@ -1,5 +1,6 @@
 import { DesignerProjectState, DesignerNode } from '../types/ast';
 import { SignalWireEngine } from './SignalWireEngine';
+import { getRealCSharpCodeForTemplate } from './templateCodes/templateCodeRegistry';
 
 /**
  * Generates WinForms Form1.Designer.cs compatible with .NET 8/9
@@ -382,6 +383,15 @@ export const generateCodeBehindCs = (project: DesignerProjectState, targetFormId
   const formId = targetFormId || project.activeFormId || project.rootFormId;
   const rootForm = project.nodes[formId] || project.nodes[project.rootFormId];
   const formName = rootForm?.properties.name || 'Form1';
+
+  // Check if project was instantiated from one of the 100 verified templates
+  const tplId = project.templateId || (rootForm?.id?.includes('tpl_') ? rootForm.id.replace('form_', '') : undefined);
+  if (tplId) {
+    const realTemplateCode = getRealCSharpCodeForTemplate(tplId, formName, project.projectName || 'WinFormsApp1');
+    if (realTemplateCode) {
+      return realTemplateCode;
+    }
+  }
 
   // Collect descendants belonging strictly to this form
   const formDescendantIds = new Set<string>();
@@ -853,17 +863,72 @@ function getEventHandlerDelegate(eventName: string): string {
 }
 
 function getSampleEventHandlerBody(controlName: string, eventName: string, controlType: string): string {
+  const lower = controlName.toLowerCase();
   if (eventName === 'Click') {
-    return `            MessageBox.Show($"Действие успешно выполнено: ${controlName}", "NextGen C# Designer", MessageBoxButtons.OK, MessageBoxIcon.Information);`;
+    if (lower.includes('calc') || lower.includes('calculate')) {
+      return `            // Выполнение прикладного расчета
+            try
+            {
+                Cursor = Cursors.WaitCursor;
+                double valA = double.TryParse(this.Controls.Find("txtInputA", true).FirstOrDefault()?.Text, out var a) ? a : 100.0;
+                double valB = double.TryParse(this.Controls.Find("txtInputB", true).FirstOrDefault()?.Text, out var b) ? b : 25.0;
+                double result = valA * valB / 100.0;
+
+                if (this.Controls.Find("txtResultLog", true).FirstOrDefault() is RichTextBox rtb)
+                {
+                    rtb.Text = $"=== РЕЗУЛЬТАТ ВЫЧИСЛЕНИЯ ===\\r\\nПараметр A: {valA}\\r\\nПараметр B: {valB}\\r\\nИтоговый результат: {result:F2}\\r\\nВремя: {DateTime.Now:HH:mm:ss}";
+                }
+            }
+            finally
+            {
+                Cursor = Cursors.Default;
+            }`;
+    }
+    if (lower.includes('add')) {
+      return `            // Добавление новой записи
+            try
+            {
+                // Инициализация новой записи в модели данных
+                MessageBox.Show("Новая запись успешно сформирована и добавлена.", "Операция выполнена", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при добавлении: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }`;
+    }
+    if (lower.includes('del') || lower.includes('delete')) {
+      return `            // Удаление выбранной записи с подтверждением
+            var confirm = MessageBox.Show("Вы действительно хотите удалить выбранный элемент?", "Подтверждение", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (confirm == DialogResult.Yes)
+            {
+                // Удаление элемента из коллекции и обновление отображения
+            }`;
+    }
+    if (lower.includes('export') || lower.includes('save')) {
+      return `            // Экспорт данных в файл
+            using var sfd = new SaveFileDialog { Filter = "CSV файлы (*.csv)|*.csv|Все файлы (*.*)|*.*", FileName = "export_data.csv" };
+            if (sfd.ShowDialog() == DialogResult.OK)
+            {
+                System.IO.File.WriteAllText(sfd.FileName, "ID;Название;Дата\\r\\n1;Запись #1;2024-09-28", System.Text.Encoding.UTF8);
+                MessageBox.Show($"Файл успешно сохранен: {sfd.FileName}", "Экспорт завершен", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }`;
+    }
+    return `            // Обработчик события нажатия кнопки ${controlName}
+            MessageBox.Show($"Вызов метода ${controlName}_Click()", "${controlName}", MessageBoxButtons.OK, MessageBoxIcon.Information);`;
   }
   if (eventName === 'TextChanged') {
-    return `            // Обработка изменения текста в поле ${controlName}\n            string currentText = ${controlName}.Text;`;
+    return `            // Обработка изменения текста в поле ${controlName}
+            string currentText = ${controlName}.Text;
+            System.Diagnostics.Debug.WriteLine($"[TextChange] ${controlName}: {currentText}");`;
   }
   if (eventName === 'CheckedChanged') {
-    return `            // Обработка переключения флажка ${controlName}\n            bool isChecked = ${controlName}.Checked;`;
+    return `            // Обработка переключения флажка ${controlName}
+            bool isChecked = ${controlName}.Checked;
+            System.Diagnostics.Debug.WriteLine($"[CheckChange] ${controlName}: {isChecked}");`;
   }
   if (eventName === 'Load') {
-    return `            // Инициализация данных при загрузке формы\n            this.Text += " [Активна]";`;
+    return `            // Инициализация данных при загрузке формы
+            this.Text += " [.NET 8 WinForms]";`;
   }
   return `            // Реализация обработчика события ${eventName} для ${controlName}`;
 }

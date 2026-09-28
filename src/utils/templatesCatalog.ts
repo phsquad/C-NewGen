@@ -1849,5 +1849,6 @@ export const instantiateTemplateProject = (templateId: string): DesignerProjectS
     nodes,
     selectedNodeIds: [rootId],
     targetFramework: 'WinForms',
+    templateId: tpl.id,
   };
 };

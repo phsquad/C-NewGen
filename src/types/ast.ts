@@ -218,6 +218,7 @@ export interface DesignerProjectState {
   morphicMode?: 'absolute' | 'adaptive'; // 🧬 Morphic Layout Engine (Absolute Win32 vs Adaptive Flex/Anchors)
   xrayMode?: boolean;          // 🩻 2.5D X-Ray Layering
   showWiring?: boolean;        // ⚡️ Toggle wires visibility on canvas
+  templateId?: string;         // Originating Template ID (e.g. "tpl_01" .. "tpl_100")
 }
 
 export interface SignalPort {

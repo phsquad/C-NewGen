@@ -2,6 +2,7 @@ import { DesignerNode, DesignerProjectState } from '../types/ast';
 import { executeActionStepsInSandbox } from './actionSandboxRunner';
 import { ActionFlow } from '../types/actions';
 import { MinesweeperEngine } from './MinesweeperEngine';
+import { executeTemplateLiveCalculation } from './templateLiveCalculator';
 
 export interface CalculatorState {
   display: string;
@@ -245,6 +246,30 @@ export class TemplateExecutionEngine {
             title: 'Переход между окнами',
             message: `Открыто окно: ${targetForm.properties.text || targetForm.properties.name}`,
           },
+        };
+      }
+    }
+
+    // === DOMAIN F: TEMPLATE LIVE DOMAIN CALCULATION (Real domain calculations for all 100 templates) ===
+    if (eventName === 'Click') {
+      const liveCalcResult = executeTemplateLiveCalculation(project, nodes, btnText, nodeName);
+      if (liveCalcResult) {
+        return {
+          updatedNodes: liveCalcResult.updatedNodes,
+          logEntry: {
+            controlName,
+            eventName,
+            handlerName,
+            message: liveCalcResult.message,
+            details: liveCalcResult.details,
+          },
+          notification: liveCalcResult.title
+            ? {
+                type: 'success',
+                title: liveCalcResult.title,
+                message: liveCalcResult.message,
+              }
+            : undefined,
         };
       }
     }

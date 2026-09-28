@@ -23,6 +23,7 @@ import {
 import { DesignerProjectState } from '../../types/ast';
 import { createProjectFromTemplate } from '../../utils/templateEngine';
 import { TemplatesGalleryModal } from '../modals/TemplatesGalleryModal';
+import { TemplateGalleryEngine } from './TemplateGalleryEngine';
 import {
   FolderOpen,
   Plus,
@@ -988,13 +989,12 @@ export const WelcomeHub: React.FC<WelcomeHubProps> = ({ onLaunchProject }) => {
         </div>
       )}
 
-      {/* 4. MODAL: FULL 100-TEMPLATE GALLERY WITH LIVE CUSTOMIZER */}
+      {/* 4. MODAL: FULL 100-TEMPLATE GALLERY WITH DYNAMIC ENGINE & LIVE HIGH-FIDELITY PREVIEW */}
       {activeModal === 'templates' && (
-        <TemplatesGalleryModal
-          isOpen={true}
+        <TemplateGalleryEngine
+          mode="modal"
           onClose={() => setActiveModal(null)}
-          onSelectTemplate={(templateId) => {
-            createProjectFromTemplate(templateId, true);
+          onLaunchProject={() => {
             setActiveModal(null);
             onLaunchProject();
           }}

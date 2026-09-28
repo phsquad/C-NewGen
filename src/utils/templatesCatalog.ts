@@ -1642,85 +1642,246 @@ export const instantiateTemplateProject = (templateId: string): DesignerProjectS
       rightPnlId
     );
   } else if (tpl.category === 'games') {
-    // Game Area with Center Canvas / Buttons
-    const gamePnlId = `pnlGame_${tpl.id}`;
-    nodes[gamePnlId] = createNode(
-      gamePnlId,
-      'Panel',
-      { x: 16, y: 90, width: 480, height: 360 },
-      {
-        name: 'pnlGameField',
-        backColor: '#09090B',
-        foreColor: '#FFFFFF',
-        borderStyle: 'FixedSingle',
-      },
-      {},
-      rootId,
-      [`btnGameAction1_${tpl.id}`, `btnGameAction2_${tpl.id}`, `lblGameScore_${tpl.id}`]
-    );
-    childIds.push(gamePnlId);
+    if (tpl.id === 'tpl_61') {
+      // ❌ Specific Layout for Template 61: Tic-Tac-Toe with AI + CS:GO 2D Mode
+      const gamePnlId = `pnlGame_${tpl.id}`;
+      const cellIds = Array.from({ length: 9 }, (_, i) => `btnCell_${i}_${tpl.id}`);
+      
+      nodes[gamePnlId] = createNode(
+        gamePnlId,
+        'Panel',
+        { x: 16, y: 90, width: 480, height: 360 },
+        {
+          name: 'pnlGameField',
+          backColor: '#09090B',
+          foreColor: '#FFFFFF',
+          borderStyle: 'FixedSingle',
+        },
+        {},
+        rootId,
+        [`lblGameScore_${tpl.id}`, ...cellIds]
+      );
+      childIds.push(gamePnlId);
 
-    nodes[`lblGameScore_${tpl.id}`] = createNode(
-      `lblGameScore_${tpl.id}`,
-      'Label',
-      { x: 16, y: 16, width: 440, height: 32 },
-      {
-        name: 'lblScore',
-        text: '🏆 СЧЕТ: 0  |  ЖИЗНИ: ❤️❤️❤️',
-        fontSize: 14,
-        fontBold: true,
-        foreColor: '#FBBF24',
-      },
-      {},
-      gamePnlId
-    );
+      nodes[`lblGameScore_${tpl.id}`] = createNode(
+        `lblGameScore_${tpl.id}`,
+        'Label',
+        { x: 16, y: 16, width: 440, height: 28 },
+        {
+          name: 'lblScore',
+          text: '❌ Крестики-Нолики | Ход: Игрок (X)',
+          fontSize: 12,
+          fontBold: true,
+          foreColor: '#60A5FA',
+        },
+        {},
+        gamePnlId
+      );
 
-    nodes[`btnGameAction1_${tpl.id}`] = createNode(
-      `btnGameAction1_${tpl.id}`,
-      'Button',
-      { x: 140, y: 130, width: 200, height: 50 },
-      {
-        name: 'btnStartGame',
-        text: '🎮 НАЧАТЬ ИГРУ',
-        backColor: '#10B981',
-        foreColor: '#FFFFFF',
-        fontBold: true,
-        fontSize: 12,
-      },
-      { Click: 'btnStartGame_Click' },
-      gamePnlId
-    );
+      // 3x3 Grid Buttons
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          const idx = r * 3 + c;
+          const id = `btnCell_${idx}_${tpl.id}`;
+          nodes[id] = createNode(
+            id,
+            'Button',
+            { x: 85 + c * 105, y: 55 + r * 95, width: 95, height: 85 },
+            {
+              name: `btnCell_${idx}`,
+              text: ' ',
+              backColor: '#27272A',
+              foreColor: '#60A5FA',
+              fontBold: true,
+              fontSize: 26,
+            },
+            { Click: 'btnCell_Click' },
+            gamePnlId
+          );
+        }
+      }
 
-    nodes[`btnGameAction2_${tpl.id}`] = createNode(
-      `btnGameAction2_${tpl.id}`,
-      'Button',
-      { x: 140, y: 195, width: 200, height: 40 },
-      {
-        name: 'btnRestart',
-        text: '🔄 Перезапустить',
-        backColor: '#3F3F46',
-        foreColor: '#E4E4E7',
-      },
-      { Click: 'btnRestart_Click' },
-      gamePnlId
-    );
+      // Right Stats & CS:GO Mode Panel
+      const statsId = `grpStats_${tpl.id}`;
+      const statsChildren = [
+        `lblStatsPlayer_${tpl.id}`,
+        `lblStatsAi_${tpl.id}`,
+        `btnRestart_${tpl.id}`,
+        `btnCsgoMode_${tpl.id}`,
+        `lblCsgoHint_${tpl.id}`
+      ];
 
-    // Right Stats Panel
-    const statsId = `grpStats_${tpl.id}`;
-    nodes[statsId] = createNode(
-      statsId,
-      'GroupBox',
-      { x: 510, y: 90, width: 194, height: 360 },
-      {
-        name: 'grpStats',
-        text: '📊 Рекорды и Настройки',
-        backColor: '#27272A',
-        foreColor: '#E4E4E7',
-      },
-      {},
-      rootId
-    );
-    childIds.push(statsId);
+      nodes[statsId] = createNode(
+        statsId,
+        'GroupBox',
+        { x: 510, y: 90, width: 194, height: 360 },
+        {
+          name: 'grpStats',
+          text: '📊 Управление и Режимы',
+          backColor: '#27272A',
+          foreColor: '#E4E4E7',
+        },
+        {},
+        rootId,
+        statsChildren
+      );
+      childIds.push(statsId);
+
+      nodes[`lblStatsPlayer_${tpl.id}`] = createNode(
+        `lblStatsPlayer_${tpl.id}`,
+        'Label',
+        { x: 12, y: 30, width: 170, height: 22 },
+        {
+          name: 'lblPlayerScore',
+          text: '👤 Игрок (X): 0 побед',
+          fontSize: 9,
+          fontBold: true,
+          foreColor: '#93C5FD',
+        },
+        {},
+        statsId
+      );
+
+      nodes[`lblStatsAi_${tpl.id}`] = createNode(
+        `lblStatsAi_${tpl.id}`,
+        'Label',
+        { x: 12, y: 58, width: 170, height: 22 },
+        {
+          name: 'lblAiScore',
+          text: '🤖 ИИ Minimax: 0 побед',
+          fontSize: 9,
+          fontBold: true,
+          foreColor: '#FCA5A5',
+        },
+        {},
+        statsId
+      );
+
+      nodes[`btnRestart_${tpl.id}`] = createNode(
+        `btnRestart_${tpl.id}`,
+        'Button',
+        { x: 12, y: 90, width: 170, height: 38 },
+        {
+          name: 'btnRestart',
+          text: '🔄 Новая игра',
+          backColor: '#2563EB',
+          foreColor: '#FFFFFF',
+          fontBold: true,
+        },
+        { Click: 'btnRestart_Click' },
+        statsId
+      );
+
+      nodes[`btnCsgoMode_${tpl.id}`] = createNode(
+        `btnCsgoMode_${tpl.id}`,
+        'Button',
+        { x: 12, y: 140, width: 170, height: 46 },
+        {
+          name: 'btnCsgoMode',
+          text: '🔫 CS:GO Aim Trainer',
+          backColor: '#D97706',
+          foreColor: '#FFFFFF',
+          fontBold: true,
+          fontSize: 10,
+        },
+        { Click: 'btnCsgoMode_Click' },
+        statsId
+      );
+
+      nodes[`lblCsgoHint_${tpl.id}`] = createNode(
+        `lblCsgoHint_${tpl.id}`,
+        'Label',
+        { x: 12, y: 195, width: 170, height: 50 },
+        {
+          name: 'lblCsgoHint',
+          text: '💥 "нет блин ксго": режим стрельбы, хедшоты, тайминг реакции и звук AK-47!',
+          fontSize: 8,
+          foreColor: '#9CA3AF',
+        },
+        {},
+        statsId
+      );
+    } else {
+      // Other Game Area with Center Canvas / Buttons
+      const gamePnlId = `pnlGame_${tpl.id}`;
+      nodes[gamePnlId] = createNode(
+        gamePnlId,
+        'Panel',
+        { x: 16, y: 90, width: 480, height: 360 },
+        {
+          name: 'pnlGameField',
+          backColor: '#09090B',
+          foreColor: '#FFFFFF',
+          borderStyle: 'FixedSingle',
+        },
+        {},
+        rootId,
+        [`btnGameAction1_${tpl.id}`, `btnGameAction2_${tpl.id}`, `lblGameScore_${tpl.id}`]
+      );
+      childIds.push(gamePnlId);
+
+      nodes[`lblGameScore_${tpl.id}`] = createNode(
+        `lblGameScore_${tpl.id}`,
+        'Label',
+        { x: 16, y: 16, width: 440, height: 32 },
+        {
+          name: 'lblScore',
+          text: '🏆 СЧЕТ: 0  |  ЖИЗНИ: ❤️❤️❤️',
+          fontSize: 14,
+          fontBold: true,
+          foreColor: '#FBBF24',
+        },
+        {},
+        gamePnlId
+      );
+
+      nodes[`btnGameAction1_${tpl.id}`] = createNode(
+        `btnGameAction1_${tpl.id}`,
+        'Button',
+        { x: 140, y: 130, width: 200, height: 50 },
+        {
+          name: 'btnStartGame',
+          text: '🎮 НАЧАТЬ ИГРУ',
+          backColor: '#10B981',
+          foreColor: '#FFFFFF',
+          fontBold: true,
+          fontSize: 12,
+        },
+        { Click: 'btnStartGame_Click' },
+        gamePnlId
+      );
+
+      nodes[`btnGameAction2_${tpl.id}`] = createNode(
+        `btnGameAction2_${tpl.id}`,
+        'Button',
+        { x: 140, y: 195, width: 200, height: 40 },
+        {
+          name: 'btnRestart',
+          text: '🔄 Перезапустить',
+          backColor: '#3F3F46',
+          foreColor: '#E4E4E7',
+        },
+        { Click: 'btnRestart_Click' },
+        gamePnlId
+      );
+
+      // Right Stats Panel
+      const statsId = `grpStats_${tpl.id}`;
+      nodes[statsId] = createNode(
+        statsId,
+        'GroupBox',
+        { x: 510, y: 90, width: 194, height: 360 },
+        {
+          name: 'grpStats',
+          text: '📊 Рекорды и Настройки',
+          backColor: '#27272A',
+          foreColor: '#E4E4E7',
+        },
+        {},
+        rootId
+      );
+      childIds.push(statsId);
+    }
   } else {
     // Standard Utility Layout: Inputs + Calculation Buttons + Output Display
     const inputPnlId = `grpInputs_${tpl.id}`;

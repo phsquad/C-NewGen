@@ -2,6 +2,7 @@ import { DesignerNode, DesignerProjectState } from '../types/ast';
 import { executeActionStepsInSandbox } from './actionSandboxRunner';
 import { ActionFlow } from '../types/actions';
 import { MinesweeperEngine } from './MinesweeperEngine';
+import { TicTacToeAndCsgoEngine } from './TicTacToeAndCsgoEngine';
 import { executeTemplateLiveCalculation } from './templateLiveCalculator';
 
 export interface CalculatorState {
@@ -40,6 +41,12 @@ export interface SimulationResult {
  */
 export class TemplateExecutionEngine {
   private minesweeper: MinesweeperEngine | null = null;
+  private ticTacToeAndCsgo: TicTacToeAndCsgoEngine = new TicTacToeAndCsgoEngine();
+  private snakeScore = 0;
+  private snakeLength = 5;
+  private puzzleMoves = 0;
+  private cookieCount = 0;
+  private cookieCps = 1;
   private calcState: CalculatorState = {
     display: '0',
     previousValue: null,
@@ -119,27 +126,93 @@ export class TemplateExecutionEngine {
     const btnText = (targetNode?.properties.text || '').trim();
     const nodeName = (targetNode?.properties.name || controlName).toLowerCase();
 
-    // === DOMAIN S: MINESWEEPER / GAME ENGINE ===
+    const tplId =
+      project.templateId ||
+      Object.keys(nodes).find(k => k.startsWith('form_tpl_'))?.replace('form_', '') ||
+      '';
+
+    // === DOMAIN G1: TIC-TAC-TOE & CS:GO 2D AIM TRAINER (tpl_61 / "нет блин ксго") ===
+    const isTicTacToeContext =
+      tplId === 'tpl_61' ||
+      formTitle.includes('крестики') ||
+      formTitle.includes('tic-tac') ||
+      formTitle.includes('tictactoe') ||
+      nodeName.startsWith('btncell_') ||
+      nodeName.includes('csgomode') ||
+      btnText.includes('CS:GO') ||
+      btnText.includes('Aim Trainer');
+
+    if (isTicTacToeContext && eventName === 'Click') {
+      // 1. Cell clicked (in TicTacToe or CS:GO Aim Trainer mode)
+      if (nodeName.startsWith('btncell_')) {
+        const cellIdx = parseInt(nodeName.replace('btncell_', ''), 10);
+        if (!isNaN(cellIdx) && cellIdx >= 0 && cellIdx < 9) {
+          return this.ticTacToeAndCsgo.handleCellClick(cellIdx, nodes, controlName, handlerName);
+        }
+      }
+
+      // 2. Restart / New game clicked
+      if (nodeName.includes('restart') || btnText.includes('Новая игра') || btnText.includes('Перезапуск')) {
+        return this.ticTacToeAndCsgo.restartTicTacToeGame(nodes, controlName, handlerName);
+      }
+
+      // 3. CS:GO mode toggle clicked ("нет блин ксго" Easter Egg / Mini Shooter)
+      if (nodeName.includes('csgo') || btnText.includes('CS:GO') || btnText.includes('Aim Trainer')) {
+        return this.ticTacToeAndCsgo.toggleCsgoMode(nodes, controlName, handlerName);
+      }
+
+      // 4. Start game button clicked when 9 cells don't exist yet on form
+      if (nodeName.includes('startgame') || btnText.includes('НАЧАТЬ') || btnText.includes('Старт')) {
+        const gamePnl = Object.values(nodes).find(
+          n => n.properties.name === 'pnlGameField' || n.id.includes('pnlGame')
+        );
+        if (gamePnl) {
+          for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+              const idx = r * 3 + c;
+              const cellId = `btnCell_${idx}_${tplId || 'dynamic'}`;
+              if (!nodes[cellId]) {
+                nodes[cellId] = {
+                  id: cellId,
+                  type: 'Button',
+                  bounds: { x: 85 + c * 105, y: 55 + r * 95, width: 95, height: 85 },
+                  properties: {
+                    name: `btnCell_${idx}`,
+                    text: ' ',
+                    backColor: '#27272A',
+                    foreColor: '#60A5FA',
+                    fontBold: true,
+                    fontSize: 26,
+                    enabled: true,
+                    visible: true,
+                  },
+                  events: { Click: 'btnCell_Click' },
+                  parentId: gamePnl.id,
+                  childrenIds: [],
+                };
+              }
+            }
+          }
+        }
+        return this.ticTacToeAndCsgo.restartTicTacToeGame(nodes, controlName, handlerName);
+      }
+    }
+
+    // === DOMAIN G2: MINESWEEPER (tpl_62 only) ===
     const isMinesweeperContext =
+      tplId === 'tpl_62' ||
       formTitle.includes('сапер') ||
       formTitle.includes('minesweeper') ||
-      formTitle.includes('игра') ||
-      formTitle.includes('game') ||
-      nodeName.includes('startgame') ||
-      nodeName.includes('mines') ||
-      btnText.includes('ИГР') ||
-      btnText.includes('Сапер') ||
-      btnText.includes('Начать') ||
-      btnText.includes('Старт');
+      (nodeName.includes('mines') && !nodeName.includes('minimax'));
 
     if (isMinesweeperContext && eventName === 'Click') {
       if (!this.minesweeper) {
         this.minesweeper = new MinesweeperEngine();
-      } else if (nodeName.includes('start') || btnText.includes('ИГР') || btnText.includes('Старт') || btnText.includes('Перезапуск')) {
+      } else if (nodeName.includes('start') || btnText.includes('Сапер') || btnText.includes('Перезапуск')) {
         this.minesweeper.initGame();
       }
 
-      const logMessage = `🎮 [MinesweeperEngine] Сгенерировано поле 9x9 (81 ячейка). Очки: ${this.minesweeper.score}, Жизни: ${this.minesweeper.lives}`;
+      const logMessage = `💣 [MinesweeperEngine] Поле 9x9 (81 ячейка). Очки: ${this.minesweeper.score}, Жизни: ${this.minesweeper.lives}`;
 
       Object.values(nodes).forEach(node => {
         if (node.properties.name === 'lblStatus' || node.properties.name === 'lblScore' || node.type === 'Label') {
@@ -160,10 +233,141 @@ export class TemplateExecutionEngine {
         },
         notification: {
           type: 'success',
-          title: 'Сапер (Live Sandbox Engine)',
+          title: 'Сапер (Minesweeper Engine)',
           message: `Счет: ${this.minesweeper.score} | Жизни: ${this.minesweeper.lives} | Флаги: ${this.minesweeper.flagsPlaced}/10`,
         },
       };
+    }
+
+    // === DOMAIN G3: SNAKE ARCADE (tpl_63) ===
+    if (tplId === 'tpl_63' || formTitle.includes('змейка') || formTitle.includes('snake')) {
+      if (eventName === 'Click') {
+        this.snakeScore += 50;
+        this.snakeLength += 1;
+        Object.values(nodes).forEach(node => {
+          if (node.properties.name === 'lblScore' || node.properties.name === 'lblStatus') {
+            node.properties.text = `🐍 СЧЕТ: ${this.snakeScore} | ДЛИНА: ${this.snakeLength} | 🍎 ЯБЛОКО СЪЕДЕНО`;
+          }
+        });
+        return {
+          updatedNodes: nodes,
+          logEntry: {
+            controlName,
+            eventName,
+            handlerName,
+            message: `🐍 Змейка съела яблоко! +50 очков. Длина: ${this.snakeLength} сегментов.`,
+            details: `SnakeEngine.Step(); // Score: ${this.snakeScore}, Length: ${this.snakeLength}`,
+          },
+          notification: {
+            type: 'success',
+            title: 'Змейка',
+            message: `Счет: ${this.snakeScore} | Длина: ${this.snakeLength}`,
+          },
+        };
+      }
+    }
+
+    // === DOMAIN G4: 15-PUZZLE (tpl_64) ===
+    if (tplId === 'tpl_64' || formTitle.includes('пятнашки') || formTitle.includes('puzzle')) {
+      if (eventName === 'Click') {
+        this.puzzleMoves++;
+        Object.values(nodes).forEach(node => {
+          if (node.properties.name === 'lblScore' || node.properties.name === 'lblStatus') {
+            node.properties.text = `🧩 ПЯТНАШКИ | Сделано ходов: ${this.puzzleMoves}`;
+          }
+        });
+        return {
+          updatedNodes: nodes,
+          logEntry: {
+            controlName,
+            eventName,
+            handlerName,
+            message: `🧩 Плитка сдвинута в пустую ячейку. Ход #${this.puzzleMoves}.`,
+            details: `Puzzle15.SlideTile(); // Moves: ${this.puzzleMoves}`,
+          },
+        };
+      }
+    }
+
+    // === DOMAIN G5: SEA BATTLE (tpl_65) ===
+    if (tplId === 'tpl_65' || formTitle.includes('морской бой') || formTitle.includes('battleship')) {
+      if (eventName === 'Click') {
+        const isHit = Math.random() > 0.4;
+        const msg = isHit ? '💥 ПОПАДАНИЕ! Вражеский крейсер ранен!' : '🌊 МИМО! Всплеск воды.';
+        Object.values(nodes).forEach(node => {
+          if (node.properties.name === 'lblScore' || node.properties.name === 'lblStatus') {
+            node.properties.text = `🚢 МОРСКОЙ БОЙ | ${msg}`;
+          }
+        });
+        return {
+          updatedNodes: nodes,
+          logEntry: {
+            controlName,
+            eventName,
+            handlerName,
+            message: `🚢 ${msg}`,
+            details: `SeaBattleEngine.Fire(x, y); // Result: ${isHit ? 'Hit' : 'Miss'}`,
+          },
+          notification: {
+            type: isHit ? 'success' : 'info',
+            title: 'Морской Бой',
+            message: msg,
+          },
+        };
+      }
+    }
+
+    // === DOMAIN G6: DICE ROLL (tpl_67) ===
+    if (tplId === 'tpl_67' || formTitle.includes('кубик') || formTitle.includes('dice')) {
+      if (eventName === 'Click') {
+        const d1 = Math.floor(Math.random() * 6) + 1;
+        const d2 = Math.floor(Math.random() * 6) + 1;
+        const sum = d1 + d2;
+        const diceGlyphs = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+        const msg = `🎲 Бросок: ${diceGlyphs[d1 - 1]} (${d1}) + ${diceGlyphs[d2 - 1]} (${d2}) = ${sum} очков!`;
+        Object.values(nodes).forEach(node => {
+          if (node.properties.name === 'lblScore' || node.properties.name === 'lblStatus') {
+            node.properties.text = msg;
+          }
+        });
+        return {
+          updatedNodes: nodes,
+          logEntry: {
+            controlName,
+            eventName,
+            handlerName,
+            message: msg,
+            details: `DiceRoller.Roll(2); // D1: ${d1}, D2: ${d2}, Sum: ${sum}`,
+          },
+          notification: {
+            type: 'info',
+            title: 'Игральные кости',
+            message: `Сумма очков: ${sum}`,
+          },
+        };
+      }
+    }
+
+    // === DOMAIN G7: COOKIE CLICKER (tpl_69) ===
+    if (tplId === 'tpl_69' || formTitle.includes('кликер') || formTitle.includes('clicker')) {
+      if (eventName === 'Click') {
+        this.cookieCount += this.cookieCps;
+        Object.values(nodes).forEach(node => {
+          if (node.properties.name === 'lblScore' || node.properties.name === 'lblStatus' || node.properties.name === 'lblBalance') {
+            node.properties.text = `🍪 ПЕЧЕНЬКИ: ${this.cookieCount}  |  +${this.cookieCps} CPS`;
+          }
+        });
+        return {
+          updatedNodes: nodes,
+          logEntry: {
+            controlName,
+            eventName,
+            handlerName,
+            message: `🍪 Клик по печеньке! +${this.cookieCps}. Баланс: ${this.cookieCount}`,
+            details: `CookieClicker.Click(); // Total: ${this.cookieCount}`,
+          },
+        };
+      }
     }
 
     // === DOMAIN A: CALCULATOR TEMPLATE ===

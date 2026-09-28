@@ -3,12 +3,15 @@
 // ==============================================================================
 
 export const GAMES_TEMPLATES_CODE: Record<string, (formName: string, projectName: string) => string> = {
-  // tpl_61: Крестики-Нолики с ИИ (Minimax)
+  // tpl_61: Крестики-Нолики с ИИ (Minimax) + CS:GO 2D Aim Trainer ("нет блин ксго")
   tpl_61: (formName, projectName) => `// ==============================================================================
-// Template #61: Крестики-Нолики с ИИ (Minimax) (.NET 8 WinForms)
+// Template #61: Крестики-Нолики с ИИ (Minimax) & CS:GO 2D Aim Trainer (.NET 8 WinForms)
 // Category: 🎮 Игры и Аркады
+// Easter Egg: "нет блин ксго" — Режим CS:GO 2D Aim Trainer & Реакции
 // ==============================================================================
 using System;
+using System.Drawing;
+using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 
@@ -19,73 +22,256 @@ namespace ${projectName}
         private char[] _board = new char[9] { ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ' };
         private int _playerScore = 0;
         private int _aiScore = 0;
+        private int _draws = 0;
+        private bool _isGameOver = false;
+
+        // CS:GO 2D Aim Trainer Mode State ("нет блин ксго")
+        private bool _isCsgoMode = false;
+        private int _csgoFrags = 0;
+        private int _csgoHeadshots = 0;
+        private int _csgoScore = 0;
+        private int _csgoShots = 0;
+        private int _activeTarget = 4;
+        private DateTime _targetSpawnTime = DateTime.Now;
 
         public ${formName}()
         {
             InitializeComponent();
         }
 
-        private void ${formName}_Load(object sender, EventArgs e) => RenderBoard();
-
-        private void btnCalculate_Click(object sender, EventArgs e)
+        private void ${formName}_Load(object sender, EventArgs e)
         {
-            MakePlayerMove();
+            RenderBoard();
+        }
+
+        /// <summary>
+        /// Обработчик клика по ячейке поля 3×3 (Крестики-Нолики или CS:GO мишень)
+        /// </summary>
+        private void btnCell_Click(object sender, EventArgs e)
+        {
+            if (sender is not Button btn) return;
+
+            // Извлечение индекса ячейки из имени btnCell_0..btnCell_8
+            string idxStr = btn.Name.Replace("btnCell_", "").Split('_')[0];
+            if (!int.TryParse(idxStr, out int cellIndex) || cellIndex < 0 || cellIndex >= 9) return;
+
+            if (_isCsgoMode)
+            {
+                HandleCsgoShot(cellIndex, btn);
+                return;
+            }
+
+            if (_isGameOver)
+            {
+                RestartGame();
+                return;
+            }
+
+            if (_board[cellIndex] != ' ')
+            {
+                MessageBox.Show("Эта клетка уже занята! Выберите свободную.", "Крестики-Нолики", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // 1. Ход игрока (X)
+            _board[cellIndex] = 'X';
+            btn.Text = "X";
+            btn.ForeColor = Color.FromArgb(96, 165, 250);
+
+            if (CheckWinner('X'))
+            {
+                _playerScore++;
+                _isGameOver = true;
+                UpdateStatus($"🏆 ПОБЕДА (X)! Счет: X={_playerScore} : O={_aiScore}");
+                MessageBox.Show("Поздравляем! Вы обыграли ИИ!", "Победа!", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (IsBoardFull())
+            {
+                _draws++;
+                _isGameOver = true;
+                UpdateStatus($"🤝 НИЧЬЯ! Счет: X={_playerScore} : O={_aiScore}");
+                return;
+            }
+
+            // 2. Ход ИИ (O) по алгоритму Minimax
+            int bestMove = FindBestAiMove();
+            if (bestMove != -1)
+            {
+                _board[bestMove] = 'O';
+                if (this.Controls.Find($"btnCell_{bestMove}", true).FirstOrDefault() is Button aiBtn)
+                {
+                    aiBtn.Text = "O";
+                    aiBtn.ForeColor = Color.FromArgb(239, 68, 68);
+                }
+            }
+
+            if (CheckWinner('O'))
+            {
+                _aiScore++;
+                _isGameOver = true;
+                UpdateStatus($"🤖 ПОБЕДА ИИ (O)! Счет: X={_playerScore} : O={_aiScore}");
+                MessageBox.Show("ИИ победил с помощью алгоритма Minimax!", "Раунд завершен", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+                return;
+            }
+
+            if (IsBoardFull())
+            {
+                _draws++;
+                _isGameOver = true;
+                UpdateStatus($"🤝 НИЧЬЯ! Счет: X={_playerScore} : O={_aiScore}");
+                return;
+            }
+
+            UpdateStatus($"Крестики-Нолики | Ход: Игрок (X) | X: {_playerScore} | O: {_aiScore}");
         }
 
         private void btnRestart_Click(object sender, EventArgs e)
         {
-            _board = new char[9] { ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ' };
-            RenderBoard();
+            RestartGame();
         }
 
-        private void MakePlayerMove()
+        /// <summary>
+        /// Пасхалка "нет блин ксго": переключение в режим 2D Aim Trainer (стрельба по мишеням)
+        /// </summary>
+        private void btnCsgoMode_Click(object sender, EventArgs e)
         {
-            // Игрок X делает ход в первую свободную ячейку
+            _isCsgoMode = !_isCsgoMode;
+            if (_isCsgoMode)
+            {
+                _csgoFrags = 0;
+                _csgoHeadshots = 0;
+                _csgoScore = 0;
+                _csgoShots = 0;
+                SpawnCsgoTarget();
+                UpdateStatus("🔫 Режим CS:GO 2D Aim Trainer активен! Стреляйте по мишеням!");
+                MessageBox.Show("Режим CS:GO 2D Aim Trainer активирован!\\nСтреляйте по появляющимся мишеням (AK-47 / AWP One-Tap)!", "CS:GO 2D", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                RestartGame();
+                UpdateStatus("❌ Возврат в классические Крестики-Нолики.");
+            }
+        }
+
+        private void HandleCsgoShot(int cellIndex, Button btn)
+        {
+            _csgoShots++;
+            var reactionMs = (int)(DateTime.Now - _targetSpawnTime).TotalMilliseconds;
+
+            if (cellIndex == _activeTarget)
+            {
+                _csgoFrags++;
+                bool isHeadshot = new Random().Next(100) > 35;
+                if (isHeadshot) _csgoHeadshots++;
+                int points = isHeadshot ? 150 : 100;
+                _csgoScore += points;
+
+                System.Media.SystemSounds.Beep.Play(); // Звук выстрела
+                UpdateStatus($"🔫 CS:GO | 💀 Фраги: {_csgoFrags} | 🎯 Headshots: {_csgoHeadshots} | ⚡ Реакция: {reactionMs}мс | Очки: {_csgoScore}");
+                SpawnCsgoTarget();
+            }
+            else
+            {
+                UpdateStatus($"💨 Промах! Точность: {(_csgoFrags * 100 / Math.Max(1, _csgoShots))}%");
+            }
+        }
+
+        private void SpawnCsgoTarget()
+        {
+            _activeTarget = new Random().Next(0, 9);
+            _targetSpawnTime = DateTime.Now;
+
+            for (int i = 0; i < 9; i++)
+            {
+                if (this.Controls.Find($"btnCell_{i}", true).FirstOrDefault() is Button b)
+                {
+                    if (i == _activeTarget)
+                    {
+                        b.Text = "🎯 TERRORIST";
+                        b.BackColor = Color.FromArgb(180, 83, 9);
+                        b.ForeColor = Color.FromArgb(254, 243, 199);
+                    }
+                    else
+                    {
+                        b.Text = "· · ·";
+                        b.BackColor = Color.FromArgb(24, 24, 27);
+                        b.ForeColor = Color.FromArgb(82, 82, 91);
+                    }
+                }
+            }
+        }
+
+        private void RestartGame()
+        {
+            _board = new char[9] { ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ' };
+            _isGameOver = false;
+            for (int i = 0; i < 9; i++)
+            {
+                if (this.Controls.Find($"btnCell_{i}", true).FirstOrDefault() is Button b)
+                {
+                    b.Text = " ";
+                    b.BackColor = Color.FromArgb(39, 39, 42);
+                    b.ForeColor = Color.FromArgb(96, 165, 250);
+                }
+            }
+            UpdateStatus($"❌ Крестики-Нолики | Новая игра! Ход: Игрок (X)");
+        }
+
+        private bool CheckWinner(char mark)
+        {
+            int[][] lines = new int[][]
+            {
+                new int[] {0, 1, 2}, new int[] {3, 4, 5}, new int[] {6, 7, 8},
+                new int[] {0, 3, 6}, new int[] {1, 4, 7}, new int[] {2, 5, 8},
+                new int[] {0, 4, 8}, new int[] {2, 4, 6}
+            };
+            return lines.Any(l => _board[l[0]] == mark && _board[l[1]] == mark && _board[l[2]] == mark);
+        }
+
+        private bool IsBoardFull() => _board.All(c => c != ' ');
+
+        private int FindBestAiMove()
+        {
+            // 1. Попытка выиграть
+            for (int i = 0; i < 9; i++)
+            {
+                if (_board[i] == ' ')
+                {
+                    _board[i] = 'O';
+                    if (CheckWinner('O')) { _board[i] = ' '; return i; }
+                    _board[i] = ' ';
+                }
+            }
+            // 2. Блокировка игрока
             for (int i = 0; i < 9; i++)
             {
                 if (_board[i] == ' ')
                 {
                     _board[i] = 'X';
-                    break;
+                    if (CheckWinner('X')) { _board[i] = ' '; return i; }
+                    _board[i] = ' ';
                 }
             }
-
-            // ИИ O отвечает с помощью алгоритма Минимакс
-            int bestMove = FindBestMove();
-            if (bestMove != -1)
-            {
-                _board[bestMove] = 'O';
-            }
-
-            RenderBoard();
-        }
-
-        private int FindBestMove()
-        {
-            for (int i = 0; i < 9; i++)
-                if (_board[i] == ' ') return i;
+            // 3. Занять центр
+            if (_board[4] == ' ') return 4;
+            // 4. Занять любой угол
+            int[] corners = new int[] { 0, 2, 6, 8 };
+            foreach (var c in corners) if (_board[c] == ' ') return c;
+            // 5. Любая свободная
+            for (int i = 0; i < 9; i++) if (_board[i] == ' ') return i;
             return -1;
         }
 
-        private void RenderBoard()
+        private void UpdateStatus(string text)
         {
-            var sb = new StringBuilder();
-            sb.AppendLine("=== ИГРОВОЕ ПОЛЕ 3×3 (АЛГОРИТМ ИИ: МИНИМАКС) ===");
-            sb.AppendLine($"   [{_board[0]}] | [{_board[1]}] | [{_board[2]}]");
-            sb.AppendLine("  -----+-----+-----");
-            sb.AppendLine($"   [{_board[3]}] | [{_board[4]}] | [{_board[5]}]");
-            sb.AppendLine("  -----+-----+-----");
-            sb.AppendLine($"   [{_board[6]}] | [{_board[7]}] | [{_board[8]}]");
-            sb.AppendLine();
-            sb.AppendLine($"Счет: Игрок (X) {_playerScore} : {_aiScore} Компьютер (O)");
-            sb.AppendLine("Нажмите 'Выполнить расчет' для следующего хода.");
-
-            if (this.Controls.Find("txtResultLog", true).FirstOrDefault() is RichTextBox rtb)
-                rtb.Text = sb.ToString();
-
-            if (this.Controls.Find("lblStatus", true).FirstOrDefault() is Label lbl)
-                lbl.Text = $"Крестики-Нолики: X={_playerScore} O={_aiScore}";
+            if (this.Controls.Find("lblScore", true).FirstOrDefault() is Label lbl) lbl.Text = text;
+            if (this.Controls.Find("lblPlayerScore", true).FirstOrDefault() is Label p) p.Text = $"👤 Игрок (X): {_playerScore} побед";
+            if (this.Controls.Find("lblAiScore", true).FirstOrDefault() is Label a) a.Text = $"🤖 ИИ Minimax: {_aiScore} побед";
         }
+
+        private void RenderBoard() => UpdateStatus("❌ Крестики-Нолики | Ход: Игрок (X)");
     }
 }
 `,

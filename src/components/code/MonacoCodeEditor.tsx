@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import Editor, { Monaco } from '@monaco-editor/react';
+import { CSharpCodeLensEngine } from '../../utils/CSharpCodeLensEngine';
 
 interface MonacoCodeEditorProps {
   value: string;
@@ -9,6 +10,7 @@ interface MonacoCodeEditorProps {
   onCursorChange?: (line: number, col: number) => void;
   targetLine?: number | null;
   readOnly?: boolean;
+  enableCodeLens?: boolean;
 }
 
 export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
@@ -19,9 +21,20 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   onCursorChange,
   targetLine,
   readOnly = false,
+  enableCodeLens = true,
 }) => {
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  const codeLensDisposableRef = useRef<{ dispose: () => void } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (codeLensDisposableRef.current) {
+        codeLensDisposableRef.current.dispose();
+        codeLensDisposableRef.current = null;
+      }
+    };
+  }, []);
 
   // Jump to target line if specified
   useEffect(() => {
@@ -122,6 +135,11 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       // Provider already registered
     }
 
+    // Register C# CodeLens provider (References, Test status, Git author details)
+    if (enableCodeLens && !codeLensDisposableRef.current) {
+      codeLensDisposableRef.current = CSharpCodeLensEngine.registerMonacoCodeLens(monaco);
+    }
+
     // Jump to line if initially provided
     if (targetLine && targetLine > 0) {
       editor.revealLineInCenter(targetLine);
@@ -166,6 +184,9 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
           formatOnType: true,
           folding: true,
           lineNumbersMinChars: 3,
+          codeLens: enableCodeLens,
+          codeLensFontFamily: "'JetBrains Mono', Consolas, 'Courier New', monospace",
+          codeLensFontSize: 10,
         }}
       />
     </div>

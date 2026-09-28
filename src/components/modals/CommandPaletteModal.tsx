@@ -39,6 +39,7 @@ import {
   Stethoscope,
   Activity,
   Cpu,
+  Eye,
 } from 'lucide-react';
 
 interface CommandItem {
@@ -457,6 +458,15 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         icon: <Layers className="w-4 h-4 text-cyan-400" />,
         action: toggleXrayMode,
         keywords: 'xray 2.5d 3d разрез слоев z-index',
+      },
+      {
+        id: 'view-codelens-feature',
+        title: 'Редактор кода: C# CodeLens (Ссылки, Статус тестов, Git Blame)',
+        category: 'View',
+        shortcut: 'Shift+F12',
+        icon: <Eye className="w-4 h-4 text-blue-400" />,
+        action: () => setCodeDockOpen(true),
+        keywords: 'codelens references tests blame author инспектор ссылки тесты автор f7',
       },
     ];
   }, [

@@ -19,6 +19,8 @@ import { RegexPatternStudioEngine } from '../../utils/RegexPatternStudioEngine';
 import { CSharpDesignerParser } from '../../utils/designerCsParser';
 import { sqliteEngine } from '../../utils/sqliteWasmEngine';
 import { MonacoCodeEditor } from './MonacoCodeEditor';
+import { CodeLensDetailModal } from '../modals/CodeLensDetailModal';
+import { CodeLensSymbol } from '../../utils/CSharpCodeLensEngine';
 
 import { SemanticRefactoringModal } from '../modals/SemanticRefactoringModal';
 import { CodeMetricsStudioModal } from '../modals/CodeMetricsStudioModal';
@@ -138,6 +140,12 @@ export const DualModeCodeIDE: React.FC = () => {
   const [metricsModalOpen, setMetricsModalOpen] = useState(false);
   const [resxModalOpen, setResxModalOpen] = useState(false);
   const [regexModalOpen, setRegexModalOpen] = useState(false);
+
+  // Microsoft Visual Studio CodeLens State (References, Tests, Git Author)
+  const [codeLensEnabled, setCodeLensEnabled] = useState(true);
+  const [codeLensModalOpen, setCodeLensModalOpen] = useState(false);
+  const [activeCodeLensSymbol, setActiveCodeLensSymbol] = useState<CodeLensSymbol | null>(null);
+  const [activeCodeLensTab, setActiveCodeLensTab] = useState<'references' | 'tests' | 'author'>('references');
 
   // Peek Definition (F12 / Alt+F12) Inline Overlay State
   const [peekDefinitionOpen, setPeekDefinitionOpen] = useState(false);
@@ -364,6 +372,22 @@ export const DualModeCodeIDE: React.FC = () => {
     window.addEventListener('jump-to-code-symbol' as any, handleJump);
     return () => window.removeEventListener('jump-to-code-symbol' as any, handleJump);
   }, [currentFileContent, setCodeDockOpen]);
+
+  // CodeLens Action Listener from Monaco Editor
+  useEffect(() => {
+    const handleCodeLensAction = (e: any) => {
+      const detail = e.detail || {};
+      const { type, symbol } = detail;
+      if (symbol) {
+        setActiveCodeLensSymbol(symbol);
+        setActiveCodeLensTab(type || 'references');
+        setCodeLensModalOpen(true);
+      }
+    };
+
+    window.addEventListener('csharp-codelens-action' as any, handleCodeLensAction);
+    return () => window.removeEventListener('csharp-codelens-action' as any, handleCodeLensAction);
+  }, []);
 
   // Text changes handler with dirty state and bidirectional synchronization
   const handleTextChange = (newText: string) => {
@@ -623,6 +647,20 @@ export const DualModeCodeIDE: React.FC = () => {
               {/* CodeLens Floating Summary Header */}
               <div className="h-6 bg-[#16161D] border-b border-zinc-800/80 px-3 flex items-center justify-between text-[10px] text-zinc-400 select-none">
                 <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCodeLensEnabled(!codeLensEnabled)}
+                    className={`px-1.5 py-0.5 rounded text-[9.5px] font-mono flex items-center gap-1 transition cursor-pointer ${
+                      codeLensEnabled
+                        ? 'bg-blue-950/60 text-blue-300 border border-blue-800/50'
+                        : 'bg-zinc-800 text-zinc-500 border border-zinc-700'
+                    }`}
+                    title="Включить / отключить строчный CodeLens в редакторе (Ссылки, Тесты, Автор)"
+                  >
+                    <Eye className="w-3 h-3 text-blue-400" />
+                    <span>CodeLens: {codeLensEnabled ? 'ВКЛ' : 'ВЫКЛ'}</span>
+                  </button>
+                  <span className="text-zinc-600">|</span>
                   <span
                     onClick={() => {
                       setPeekSymbolName(selectedMethod);
@@ -714,6 +752,7 @@ export const DualModeCodeIDE: React.FC = () => {
                   onChange={handleTextChange}
                   onCursorChange={(l, c) => setCursorPos({ line: l, col: c })}
                   targetLine={targetLine}
+                  enableCodeLens={codeLensEnabled}
                 />
               </div>
             </div>
@@ -759,6 +798,14 @@ export const DualModeCodeIDE: React.FC = () => {
         <RegexStudioModal
           isOpen={regexModalOpen}
           onClose={() => setRegexModalOpen(false)}
+        />
+        <CodeLensDetailModal
+          isOpen={codeLensModalOpen}
+          onClose={() => setCodeLensModalOpen(false)}
+          symbol={activeCodeLensSymbol}
+          activeTab={activeCodeLensTab}
+          onSelectTab={setActiveCodeLensTab}
+          onJumpToLine={(line) => setTargetLine(line)}
         />
       </>
     );
@@ -1101,6 +1148,20 @@ export const DualModeCodeIDE: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCodeLensEnabled(!codeLensEnabled)}
+                  className={`px-1.5 py-0.5 rounded text-[9.5px] font-mono flex items-center gap-1 transition cursor-pointer ${
+                    codeLensEnabled
+                      ? 'bg-blue-950/60 text-blue-300 border border-blue-800/50'
+                      : 'bg-zinc-800 text-zinc-500 border border-zinc-700'
+                  }`}
+                  title="Включить / отключить строчный CodeLens в редакторе (Ссылки, Тесты, Автор)"
+                >
+                  <Eye className="w-3 h-3 text-blue-400" />
+                  <span>CodeLens: {codeLensEnabled ? 'ВКЛ' : 'ВЫКЛ'}</span>
+                </button>
+                <span className="text-zinc-600">|</span>
                 <span
                   onClick={() => {
                     setPeekSymbolName(selectedMethod);
@@ -1130,6 +1191,7 @@ export const DualModeCodeIDE: React.FC = () => {
                 onChange={handleTextChange}
                 onCursorChange={(l, c) => setCursorPos({ line: l, col: c })}
                 targetLine={targetLine}
+                enableCodeLens={codeLensEnabled}
               />
             </div>
 
@@ -1235,6 +1297,14 @@ export const DualModeCodeIDE: React.FC = () => {
         <RegexStudioModal
           isOpen={regexModalOpen}
           onClose={() => setRegexModalOpen(false)}
+        />
+        <CodeLensDetailModal
+          isOpen={codeLensModalOpen}
+          onClose={() => setCodeLensModalOpen(false)}
+          symbol={activeCodeLensSymbol}
+          activeTab={activeCodeLensTab}
+          onSelectTab={setActiveCodeLensTab}
+          onJumpToLine={(line) => setTargetLine(line)}
         />
       </div>
     </>

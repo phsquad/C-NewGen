@@ -338,8 +338,8 @@ export const DesignSurface: React.FC = () => {
               if (e.code === 'ArrowDown') dh = dh = step;
 
               updates[id] = {
-                width: Math.max(8, b.width + dw),
-                height: Math.max(8, b.height + dh),
+                width: Math.max(12, b.width + dw),
+                height: Math.max(12, b.height + dh),
               };
             } else {
               // Arrows: Move X/Y
@@ -476,16 +476,13 @@ export const DesignSurface: React.FC = () => {
     const paddingX = Math.max(60, vw * 0.12);
     const paddingY = Math.max(60, vh * 0.12);
 
-    const scaleX = (vw - paddingX * 2) / targetW;
-    const scaleY = (vh - paddingY * 2) / targetH;
-    const targetScale = Math.min(1.25, Math.max(0.45, Math.min(scaleX, scaleY)));
-
+    const targetScale = 1.0;
     const newTx = Math.round((vw - targetW * targetScale) / 2 - target.bounds.x * targetScale);
     const newTy = Math.round((vh - targetH * targetScale) / 2 - target.bounds.y * targetScale);
 
-    setZoom(targetScale);
+    setZoom(1.0);
     setPanOffset({ x: newTx, y: newTy });
-    addConsoleLog('System', `Холст подогнан под форму ${target.properties.name} (Масштаб: ${Math.round(targetScale * 100)}%).`);
+    addConsoleLog('System', `Холст отцентрирован на форму ${target.properties.name} со 100% масштабом.`);
   }, [activeForm, allForms, containerSize, setZoom, setPanOffset, addConsoleLog]);
 
   // Reset Scale to 1:1 (100%) and Center Active Form

@@ -16,6 +16,9 @@ import { RoslynCodeMetrics, CodeMetricsResult } from '../../utils/RoslynCodeMetr
 import { RoslynQuickFixes, QuickFixItem } from '../../utils/RoslynQuickFixes';
 import { ResxLocalizationEngine } from '../../utils/ResxLocalizationEngine';
 import { RegexPatternStudioEngine } from '../../utils/RegexPatternStudioEngine';
+import { CSharpDesignerParser } from '../../utils/designerCsParser';
+import { sqliteEngine } from '../../utils/sqliteWasmEngine';
+import { MonacoCodeEditor } from './MonacoCodeEditor';
 
 import { SemanticRefactoringModal } from '../modals/SemanticRefactoringModal';
 import { CodeMetricsStudioModal } from '../modals/CodeMetricsStudioModal';
@@ -179,10 +182,20 @@ export const DualModeCodeIDE: React.FC = () => {
         lang: 'python',
         code: generatePythonCustomTkinter(project),
       },
-      'schema.sql': {
-        name: 'schema.sql',
+      'database.sql': {
+        name: 'database.sql',
         lang: 'sql',
-        code: `-- SQLite Schema for ${projectName}\nCREATE TABLE IF NOT EXISTS Users (\n    Id INTEGER PRIMARY KEY AUTOINCREMENT,\n    Username TEXT NOT NULL UNIQUE,\n    PasswordHash TEXT NOT NULL,\n    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP\n);\n\nINSERT INTO Users (Username, PasswordHash) VALUES ('admin', 'sha256_hash_root');\n`,
+        code: sqliteEngine.exportSqlDump() || `-- SQLite Schema for ${projectName}\nCREATE TABLE IF NOT EXISTS Users_Table (\n    Id INTEGER PRIMARY KEY AUTOINCREMENT,\n    FullName TEXT NOT NULL,\n    GroupName TEXT,\n    GradeAverage REAL\n);\n`,
+      },
+      'index.html': {
+        name: 'index.html',
+        lang: 'html',
+        code: generateWebHtml(project),
+      },
+      'styles.css': {
+        name: 'styles.css',
+        lang: 'css',
+        code: `/* WebStyles for ${projectName} */\nbody {\n    background-color: #0f172a;\n    color: #f8fafc;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\n    margin: 0;\n    padding: 20px;\n}\n`,
       },
       'README.md': {
         name: 'README.md',
@@ -327,10 +340,48 @@ export const DualModeCodeIDE: React.FC = () => {
     });
   };
 
-  // Text changes handler with dirty state
+  const [targetLine, setTargetLine] = useState<number | null>(null);
+
+  // Jump to method/symbol handler
+  useEffect(() => {
+    const handleJump = (e: any) => {
+      const detail = e.detail || {};
+      const { symbolName, fileName } = detail;
+      if (fileName) {
+        setActiveTab(fileName);
+      }
+      if (symbolName) {
+        setSelectedMethod(symbolName);
+        const lns = currentFileContent.split('\n');
+        const fIdx = lns.findIndex((l) => l.includes(symbolName));
+        if (fIdx !== -1) {
+          setTargetLine(fIdx + 1);
+        }
+      }
+      setCodeDockOpen(true);
+    };
+
+    window.addEventListener('jump-to-code-symbol' as any, handleJump);
+    return () => window.removeEventListener('jump-to-code-symbol' as any, handleJump);
+  }, [currentFileContent, setCodeDockOpen]);
+
+  // Text changes handler with dirty state and bidirectional synchronization
   const handleTextChange = (newText: string) => {
     setCustomFileOverrides((prev) => ({ ...prev, [activeTab]: newText }));
     setDirtyFiles((prev) => new Set(prev).add(activeTab));
+
+    // Two-way sync: editing Designer.cs updates canvas nodes in real time
+    if (activeTab.endsWith('.Designer.cs')) {
+      try {
+        const parser = new CSharpDesignerParser();
+        const parsed = parser.parseDesignerCode(newText);
+        if (parsed.isValid && parsed.projectState?.nodes && Object.keys(parsed.projectState.nodes).length > 0) {
+          setProjectState(parsed.projectState);
+        }
+      } catch {
+        // Tolerant parser ignores partial edits
+      }
+    }
   };
 
   // Format code (indentation cleanup)
@@ -654,55 +705,16 @@ export const DualModeCodeIDE: React.FC = () => {
                 </div>
               )}
 
-              {/* Main Editor Body */}
-              <div className="flex-1 flex overflow-hidden">
-                {/* Gutter: Line Numbers & Breakpoints */}
-                <div className="w-12 bg-[#18181F] border-r border-zinc-800/80 py-2 select-none text-right pr-2 text-zinc-500 shrink-0 text-[11px] font-mono overflow-hidden">
-                  {lines.map((_, i) => {
-                    const lineNum = i + 1;
-                    const hasBp = breakpoints.has(lineNum);
-                    return (
-                      <div
-                        key={i}
-                        onClick={() => toggleBreakpoint(lineNum)}
-                        className="leading-5 flex items-center justify-end gap-1 px-1 cursor-pointer group hover:text-white"
-                      >
-                        {hasBp ? (
-                          <span className="w-2 h-2 rounded-full bg-red-500 inline-block shadow-sm" />
-                        ) : (
-                          <span className="w-2 h-2 rounded-full bg-red-500/0 group-hover:bg-red-500/40 inline-block" />
-                        )}
-                        <span>{lineNum}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Interactive Code Text Area & Display */}
-                <div className="flex-1 relative overflow-auto p-2">
-                  <textarea
-                    ref={textareaRef}
-                    value={currentFileContent}
-                    onChange={(e) => handleTextChange(e.target.value)}
-                    onClick={(e) => {
-                      const target = e.target as HTMLTextAreaElement;
-                      const textBefore = target.value.substring(0, target.selectionStart);
-                      const l = textBefore.split('\n').length;
-                      const c = textBefore.length - textBefore.lastIndexOf('\n');
-                      setCursorPos({ line: l, col: c });
-                    }}
-                    onKeyUp={(e) => {
-                      const target = e.target as HTMLTextAreaElement;
-                      const textBefore = target.value.substring(0, target.selectionStart);
-                      const l = textBefore.split('\n').length;
-                      const c = textBefore.length - textBefore.lastIndexOf('\n');
-                      setCursorPos({ line: l, col: c });
-                    }}
-                    spellCheck={false}
-                    className="w-full h-full bg-transparent text-zinc-200 font-mono text-[12px] leading-5 resize-none focus:outline-none border-none selection:bg-blue-600/40 whitespace-pre tab-4"
-                    style={{ tabSize: 4 }}
-                  />
-                </div>
+              {/* Main Editor Body: Monaco Editor Core */}
+              <div className="flex-1 flex overflow-hidden relative">
+                <MonacoCodeEditor
+                  value={currentFileContent}
+                  language={activeLang}
+                  fileName={activeTab}
+                  onChange={handleTextChange}
+                  onCursorChange={(l, c) => setCursorPos({ line: l, col: c })}
+                  targetLine={targetLine}
+                />
               </div>
             </div>
           )}
@@ -1109,92 +1121,16 @@ export const DualModeCodeIDE: React.FC = () => {
               </div>
             </div>
 
-            {/* Code Editor Body + Minimap */}
+            {/* Code Editor Body: Monaco Editor Core */}
             <div className="flex-1 flex overflow-hidden relative">
-              {/* Gutter */}
-              <div className="w-16 bg-[#18181F] border-r border-zinc-800/80 py-2 select-none text-right pr-2 text-zinc-500 shrink-0 text-[11px] font-mono overflow-hidden">
-                {lines.map((line, i) => {
-                  const lineNum = i + 1;
-                  const hasBp = breakpoints.has(lineNum);
-                  const isFoldable = line.includes('{') || line.includes('class ') || line.includes('void ');
-                  const isFolded = foldedBlocks.has(lineNum);
-
-                  return (
-                    <div
-                      key={i}
-                      className="leading-5 flex items-center justify-end gap-1 px-1 cursor-pointer group hover:text-white relative"
-                    >
-                      {/* Breakpoint */}
-                      <span
-                        onClick={() => toggleBreakpoint(lineNum)}
-                        title="Точка останова"
-                        className="cursor-pointer"
-                      >
-                        {hasBp ? (
-                          <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block shadow-sm" />
-                        ) : (
-                          <span className="w-2.5 h-2.5 rounded-full bg-red-500/0 group-hover:bg-red-500/40 inline-block" />
-                        )}
-                      </span>
-
-                      {/* Folding */}
-                      {isFoldable ? (
-                        <span
-                          onClick={() => toggleFoldBlock(lineNum)}
-                          className="text-[9px] text-zinc-600 hover:text-zinc-300 w-2.5 text-center cursor-pointer"
-                        >
-                          {isFolded ? '►' : '▼'}
-                        </span>
-                      ) : (
-                        <span className="w-2.5" />
-                      )}
-
-                      {/* Line number */}
-                      <span className="text-zinc-500 group-hover:text-zinc-200">{lineNum}</span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Editor Textarea */}
-              <div className="flex-1 relative overflow-auto p-2 bg-[#1E1E24]">
-                <textarea
-                  value={currentFileContent}
-                  onChange={(e) => handleTextChange(e.target.value)}
-                  onClick={(e) => {
-                    const target = e.target as HTMLTextAreaElement;
-                    const textBefore = target.value.substring(0, target.selectionStart);
-                    const l = textBefore.split('\n').length;
-                    const c = textBefore.length - textBefore.lastIndexOf('\n');
-                    setCursorPos({ line: l, col: c });
-                  }}
-                  onKeyUp={(e) => {
-                    const target = e.target as HTMLTextAreaElement;
-                    const textBefore = target.value.substring(0, target.selectionStart);
-                    const l = textBefore.split('\n').length;
-                    const c = textBefore.length - textBefore.lastIndexOf('\n');
-                    setCursorPos({ line: l, col: c });
-                  }}
-                  spellCheck={false}
-                  className="w-full h-full bg-transparent text-zinc-200 font-mono text-[13px] leading-5 resize-none focus:outline-none border-none selection:bg-blue-600/40 whitespace-pre"
-                  style={{ tabSize: 4 }}
-                />
-              </div>
-
-              {/* Minimap */}
-              <div className="w-28 bg-[#18181F]/90 border-l border-zinc-800/80 p-1 select-none overflow-hidden text-[3px] leading-[4px] font-mono text-zinc-500 relative shrink-0 hidden md:block">
-                <div
-                  style={{ top: `${(cursorPos.line / Math.max(lines.length, 1)) * 80}%` }}
-                  className="absolute left-0 right-0 h-10 bg-blue-500/10 border-y border-blue-500/30 pointer-events-none transition-all duration-75"
-                />
-                <div className="opacity-70 pointer-events-none">
-                  {lines.slice(0, 80).map((l, i) => (
-                    <div key={i} className="truncate text-zinc-500">
-                      {l.trim().slice(0, 30)}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <MonacoCodeEditor
+                value={currentFileContent}
+                language={activeLang}
+                fileName={activeTab}
+                onChange={handleTextChange}
+                onCursorChange={(l, c) => setCursorPos({ line: l, col: c })}
+                targetLine={targetLine}
+              />
             </div>
 
             {/* Bottom Tool Windows */}

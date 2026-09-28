@@ -1,697 +1,730 @@
 import React, { useState, useEffect } from 'react';
-import { Database, Table, Code2, Play, Plus, Trash2, Edit3, Check, RefreshCw, Sparkles, Terminal as TerminalIcon, ShieldCheck } from 'lucide-react';
-
-export interface DbColumn {
-  name: string;
-  type: 'INTEGER' | 'TEXT' | 'REAL' | 'BOOLEAN';
-  isPrimaryKey?: boolean;
-  isNotNull?: boolean;
-}
-
-export interface DbTable {
-  id: string;
-  name: string;
-  columns: DbColumn[];
-  rows: Record<string, any>[];
-}
-
-const DEFAULT_TABLES: DbTable[] = [
-  {
-    id: 'users_table',
-    name: 'Users_Table',
-    columns: [
-      { name: 'Id', type: 'INTEGER', isPrimaryKey: true, isNotNull: true },
-      { name: 'FullName', type: 'TEXT', isNotNull: true },
-      { name: 'GroupName', type: 'TEXT' },
-      { name: 'GradeAverage', type: 'REAL' },
-    ],
-    rows: [
-      { Id: 1, FullName: 'Александр Талентс', GroupName: 'ИВТ-201', GradeAverage: 4.95 },
-      { Id: 2, FullName: 'Иван Иванов', GroupName: 'ИВТ-201', GradeAverage: 4.20 },
-      { Id: 3, FullName: 'Мария Смирнова', GroupName: 'ПИ-302', GradeAverage: 5.00 },
-      { Id: 4, FullName: 'Дмитрий Соколов', GroupName: 'ИВТ-201', GradeAverage: 4.75 },
-    ],
-  },
-  {
-    id: 'products_table',
-    name: 'Products_Table',
-    columns: [
-      { name: 'Id', type: 'INTEGER', isPrimaryKey: true, isNotNull: true },
-      { name: 'Title', type: 'TEXT', isNotNull: true },
-      { name: 'Price', type: 'REAL' },
-      { name: 'Stock', type: 'INTEGER' },
-    ],
-    rows: [
-      { Id: 1, Title: 'Ноутбук Lenovo Legion', Price: 125000, Stock: 8 },
-      { Id: 2, Title: 'Монитор Dell 27 4K', Price: 42000, Stock: 15 },
-      { Id: 3, Title: 'Механическая клавиатура', Price: 9500, Stock: 30 },
-    ],
-  },
-];
+import { sqliteEngine, SqlQueryResult, SqlTableColumnInfo } from '../../utils/sqliteWasmEngine';
+import {
+  Database,
+  Table,
+  Code2,
+  Play,
+  Plus,
+  Trash2,
+  Edit3,
+  Check,
+  RefreshCw,
+  Sparkles,
+  Terminal as TerminalIcon,
+  Download,
+  Upload,
+  FileCode,
+  Layers,
+  Search,
+} from 'lucide-react';
 
 export const DevOSDatabaseStudio: React.FC = () => {
-  const [tables, setTables] = useState<DbTable[]>(() => {
-    try {
-      const saved = localStorage.getItem('devos_db_tables');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error(e);
-    }
-    return DEFAULT_TABLES;
-  });
-
-  const [activeTableId, setActiveTableId] = useState<string>('users_table');
+  const [isReady, setIsReady] = useState(false);
+  const [tables, setTables] = useState<string[]>([]);
+  const [activeTable, setActiveTable] = useState<string>('Users_Table');
+  const [columns, setColumns] = useState<SqlTableColumnInfo[]>([]);
+  const [rows, setRows] = useState<Record<string, any>[]>([]);
   const [activeTab, setActiveTab] = useState<'grid' | 'schema' | 'sql' | 'csharp'>('grid');
 
-  // New row form state
+  // Row editor
   const [newRowData, setNewRowData] = useState<Record<string, string>>({});
   const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
   const [editingRowData, setEditingRowData] = useState<Record<string, string>>({});
 
-  // SQL Console state
+  // Column creator
+  const [newColName, setNewColName] = useState('');
+  const [newColType, setNewColType] = useState('TEXT');
+
+  // Table creator
+  const [newTableName, setNewTableName] = useState('');
+  const [showCreateTable, setShowCreateTable] = useState(false);
+
+  // SQL Console
   const [sqlQuery, setSqlQuery] = useState<string>(
     'SELECT * FROM Users_Table WHERE GradeAverage >= 4.5 ORDER BY FullName ASC;'
   );
-  const [sqlResult, setSqlResult] = useState<{ columns: string[]; rows: any[][]; timeMs: number } | null>(null);
+  const [sqlResult, setSqlResult] = useState<SqlQueryResult | null>(null);
   const [sqlError, setSqlError] = useState<string | null>(null);
 
-  // New Column form state
-  const [newColName, setNewColName] = useState('');
-  const [newColType, setNewColType] = useState<'INTEGER' | 'TEXT' | 'REAL' | 'BOOLEAN'>('TEXT');
-
-  // Save to LocalStorage
+  // Initialize SQLite WASM
   useEffect(() => {
-    try {
-      localStorage.setItem('devos_db_tables', JSON.stringify(tables));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [tables]);
+    sqliteEngine.initialize().then(() => {
+      setIsReady(true);
+      refreshDatabase();
+    });
+  }, []);
 
-  const activeTable = tables.find((t) => t.id === activeTableId) || tables[0];
+  const refreshDatabase = () => {
+    const tableList = sqliteEngine.getTableList();
+    setTables(tableList);
+    const targetTable = tableList.includes(activeTable) ? activeTable : tableList[0] || '';
+    setActiveTable(targetTable);
+    if (targetTable) {
+      loadTableData(targetTable);
+    }
+  };
+
+  const loadTableData = (tableName: string) => {
+    const cols = sqliteEngine.getTableColumns(tableName);
+    const data = sqliteEngine.getTableRows(tableName);
+    setColumns(cols);
+    setRows(data);
+    setEditingRowIndex(null);
+  };
+
+  const handleSelectTable = (tbl: string) => {
+    setActiveTable(tbl);
+    loadTableData(tbl);
+  };
 
   // ── ROW ACTIONS ──
   const handleAddRow = () => {
     if (!activeTable) return;
-    const newId = activeTable.rows.length > 0 ? Math.max(...activeTable.rows.map((r) => Number(r.Id) || 0)) + 1 : 1;
-    
-    const rowObj: Record<string, any> = { Id: newId };
-    activeTable.columns.forEach((col) => {
-      if (col.name === 'Id') return;
-      const val = newRowData[col.name];
-      if (col.type === 'INTEGER' || col.type === 'REAL') {
-        rowObj[col.name] = val ? Number(val) : 0;
-      } else if (col.type === 'BOOLEAN') {
-        rowObj[col.name] = val === 'true' || val === '1';
-      } else {
-        rowObj[col.name] = val || '';
-      }
-    });
+    try {
+      const colNames: string[] = [];
+      const values: string[] = [];
 
-    setTables((prev) =>
-      prev.map((t) => (t.id === activeTable.id ? { ...t, rows: [...t.rows, rowObj] } : t))
-    );
-    setNewRowData({});
-  };
-
-  const handleDeleteRow = (index: number) => {
-    if (!activeTable) return;
-    setTables((prev) =>
-      prev.map((t) =>
-        t.id === activeTable.id ? { ...t, rows: t.rows.filter((_, i) => i !== index) } : t
-      )
-    );
-  };
-
-  const handleSaveEditRow = (index: number) => {
-    if (!activeTable) return;
-    const updatedRows = [...activeTable.rows];
-    const currentRow = { ...updatedRows[index] };
-
-    activeTable.columns.forEach((col) => {
-      if (editingRowData[col.name] !== undefined) {
-        const val = editingRowData[col.name];
-        if (col.type === 'INTEGER' || col.type === 'REAL') {
-          currentRow[col.name] = Number(val);
-        } else {
-          currentRow[col.name] = val;
+      columns.forEach((col) => {
+        if (col.pk && !newRowData[col.name]) return; // Let AUTOINCREMENT handle it
+        const raw = newRowData[col.name];
+        if (raw !== undefined && raw !== '') {
+          colNames.push(`"${col.name}"`);
+          if (col.type.toUpperCase() === 'INTEGER' || col.type.toUpperCase() === 'REAL') {
+            values.push(String(Number(raw) || 0));
+          } else {
+            values.push(`'${raw.replace(/'/g, "''")}'`);
+          }
         }
-      }
-    });
+      });
 
-    updatedRows[index] = currentRow;
-    setTables((prev) =>
-      prev.map((t) => (t.id === activeTable.id ? { ...t, rows: updatedRows } : t))
-    );
-    setEditingRowIndex(null);
-    setEditingRowData({});
+      if (colNames.length > 0) {
+        sqliteEngine.execute(
+          `INSERT INTO "${activeTable}" (${colNames.join(', ')}) VALUES (${values.join(', ')});`
+        );
+      } else {
+        sqliteEngine.execute(`INSERT INTO "${activeTable}" DEFAULT VALUES;`);
+      }
+
+      loadTableData(activeTable);
+      setNewRowData({});
+    } catch (e: any) {
+      setSqlError(e.message);
+    }
   };
 
-  const handleGenerateFakeData = () => {
+  const handleDeleteRow = (row: Record<string, any>) => {
     if (!activeTable) return;
-    const names = ['Екатерина Волкова', 'Максим Морозов', 'Ольга Васильева', 'Артем Кузнецов', 'Наталья Попова'];
-    const groups = ['ИВТ-201', 'ПИ-302', 'ИВТ-101', 'ИС-401'];
+    const pkCol = columns.find((c) => c.pk) || columns[0];
+    if (!pkCol) return;
 
-    const newRows = [...activeTable.rows];
-    let nextId = newRows.length > 0 ? Math.max(...newRows.map((r) => Number(r.Id) || 0)) + 1 : 1;
+    try {
+      const val = row[pkCol.name];
+      const condition =
+        typeof val === 'number'
+          ? `"${pkCol.name}" = ${val}`
+          : `"${pkCol.name}" = '${String(val).replace(/'/g, "''")}'`;
 
-    for (let i = 0; i < 3; i++) {
-      if (activeTable.name === 'Users_Table') {
-        newRows.push({
-          Id: nextId++,
-          FullName: names[Math.floor(Math.random() * names.length)],
-          GroupName: groups[Math.floor(Math.random() * groups.length)],
-          GradeAverage: Number((3.5 + Math.random() * 1.5).toFixed(2)),
-        });
-      } else {
-        newRows.push({
-          Id: nextId++,
-          Title: `Товар #${nextId}`,
-          Price: Math.floor(Math.random() * 50000) + 1000,
-          Stock: Math.floor(Math.random() * 50) + 1,
-        });
-      }
+      sqliteEngine.execute(`DELETE FROM "${activeTable}" WHERE ${condition};`);
+      loadTableData(activeTable);
+    } catch (e: any) {
+      setSqlError(e.message);
     }
+  };
 
-    setTables((prev) =>
-      prev.map((t) => (t.id === activeTable.id ? { ...t, rows: newRows } : t))
-    );
+  const handleSaveEditRow = (row: Record<string, any>) => {
+    if (!activeTable) return;
+    const pkCol = columns.find((c) => c.pk) || columns[0];
+    if (!pkCol) return;
+
+    try {
+      const pkVal = row[pkCol.name];
+      const updates: string[] = [];
+
+      columns.forEach((col) => {
+        if (col.pk) return;
+        const val = editingRowData[col.name];
+        if (val !== undefined) {
+          if (col.type.toUpperCase() === 'INTEGER' || col.type.toUpperCase() === 'REAL') {
+            updates.push(`"${col.name}" = ${Number(val) || 0}`);
+          } else {
+            updates.push(`"${col.name}" = '${val.replace(/'/g, "''")}'`);
+          }
+        }
+      });
+
+      if (updates.length > 0) {
+        const condition =
+          typeof pkVal === 'number'
+            ? `"${pkCol.name}" = ${pkVal}`
+            : `"${pkCol.name}" = '${String(pkVal).replace(/'/g, "''")}'`;
+
+        sqliteEngine.execute(`UPDATE "${activeTable}" SET ${updates.join(', ')} WHERE ${condition};`);
+      }
+
+      setEditingRowIndex(null);
+      loadTableData(activeTable);
+    } catch (e: any) {
+      setSqlError(e.message);
+    }
   };
 
   // ── SCHEMA ACTIONS ──
   const handleAddColumn = () => {
-    if (!newColName.trim() || !activeTable) return;
-    const colName = newColName.trim().replace(/[^A-Za-z0-9_]/g, '');
-    if (activeTable.columns.some((c) => c.name === colName)) return;
-
-    const newCols: DbColumn[] = [...activeTable.columns, { name: colName, type: newColType }];
-    setTables((prev) =>
-      prev.map((t) => (t.id === activeTable.id ? { ...t, columns: newCols } : t))
-    );
-    setNewColName('');
-  };
-
-  // ── SQL EXECUTION ──
-  const handleRunSql = () => {
-    setSqlError(null);
-    const start = performance.now();
-
+    if (!activeTable || !newColName.trim()) return;
     try {
-      const q = sqlQuery.trim().toUpperCase();
-      if (q.startsWith('SELECT')) {
-        // Simple mock parser
-        let targetRows = activeTable.rows;
-        if (sqlQuery.toLowerCase().includes('gradeaverage >= 4.5')) {
-          targetRows = targetRows.filter((r) => (r.GradeAverage || 0) >= 4.5);
-        }
-
-        const cols = activeTable.columns.map((c) => c.name);
-        const matrix = targetRows.map((r) => cols.map((c) => r[c] ?? 'NULL'));
-
-        setSqlResult({
-          columns: cols,
-          rows: matrix,
-          timeMs: Number((performance.now() - start + 0.5).toFixed(1)),
-        });
-      } else {
-        setSqlResult({
-          columns: ['Result'],
-          rows: [['[OK] Запрос успешно выполнен. Затронуто строк: 1']],
-          timeMs: Number((performance.now() - start + 0.4).toFixed(1)),
-        });
-      }
-    } catch (err: any) {
-      setSqlError(err.message || 'Ошибка выполнения SQL синтаксиса SQLite');
+      sqliteEngine.execute(`ALTER TABLE "${activeTable}" ADD COLUMN "${newColName.trim()}" ${newColType};`);
+      setNewColName('');
+      loadTableData(activeTable);
+    } catch (e: any) {
+      setSqlError(e.message);
     }
   };
 
-  // ── LIVE C# CODE GENERATION (POCO + REPOSITORY) ──
-  const generatePocoCs = () => {
-    if (!activeTable) return '';
-    const className = activeTable.name.replace(/_Table$/i, '').replace(/s$/, '');
-    const props = activeTable.columns
-      .map((c) => {
-        let csType = 'string';
-        if (c.type === 'INTEGER') csType = 'int';
-        if (c.type === 'REAL') csType = 'double';
-        if (c.type === 'BOOLEAN') csType = 'bool';
-
-        const defVal = csType === 'string' ? ' = string.Empty;' : '';
-        return `    public ${csType} ${c.name} { get; set; }${defVal}`;
-      })
-      .join('\n');
-
-    return `namespace MyUniversityApp.Models;\n\npublic class ${className}\n{\n${props}\n}`;
+  const handleCreateTable = () => {
+    if (!newTableName.trim()) return;
+    try {
+      sqliteEngine.execute(`
+        CREATE TABLE "${newTableName.trim()}" (
+          Id INTEGER PRIMARY KEY AUTOINCREMENT,
+          Title TEXT NOT NULL,
+          CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      setNewTableName('');
+      setShowCreateTable(false);
+      refreshDatabase();
+      setActiveTable(newTableName.trim());
+      loadTableData(newTableName.trim());
+    } catch (e: any) {
+      setSqlError(e.message);
+    }
   };
 
-  const generateRepoCs = () => {
-    if (!activeTable) return '';
-    const className = activeTable.name.replace(/_Table$/i, '').replace(/s$/, '');
-    const repoName = `${className}Repository`;
-    const colsExceptId = activeTable.columns.filter((c) => c.name !== 'Id');
-    const colNamesStr = activeTable.columns.map((c) => c.name).join(', ');
-    const insertColsStr = colsExceptId.map((c) => c.name).join(', ');
-    const insertValsStr = colsExceptId.map((c) => `$${c.name.toLowerCase()}`).join(', ');
+  // ── SQL CONSOLE EXECUTION ──
+  const handleRunQuery = () => {
+    setSqlError(null);
+    try {
+      const res = sqliteEngine.execute(sqlQuery);
+      setSqlResult(res);
+      refreshDatabase();
+    } catch (e: any) {
+      setSqlError(e.message);
+      setSqlResult(null);
+    }
+  };
 
-    const readerAssigns = activeTable.columns
-      .map((c, idx) => {
-        let getter = `reader.GetString(${idx})`;
-        if (c.type === 'INTEGER') getter = `reader.GetInt32(${idx})`;
-        if (c.type === 'REAL') getter = `reader.GetDouble(${idx})`;
-        if (c.type === 'BOOLEAN') getter = `reader.GetBoolean(${idx})`;
-        return `                ${c.name} = ${getter}`;
-      })
-      .join(',\n');
+  // ── EXPORT / IMPORT ──
+  const handleExportSql = () => {
+    const dump = sqliteEngine.exportSqlDump();
+    const blob = new Blob([dump], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'database.sql';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
-    const paramAssigns = colsExceptId
-      .map((c) => `        command.Parameters.AddWithValue("$${c.name.toLowerCase()}", entity.${c.name});`)
-      .join('\n');
+  const handleExportDb = () => {
+    const binary = sqliteEngine.exportBinary();
+    if (!binary) return;
+    const blob = new Blob([binary.buffer as ArrayBuffer], { type: 'application/x-sqlite3' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'database.sqlite';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
-    return `using System;
-using System.Collections.Generic;
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.name.endsWith('.sql')) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          sqliteEngine.execute(reader.result as string);
+          refreshDatabase();
+        } catch (err: any) {
+          setSqlError(err.message);
+        }
+      };
+      reader.readAsText(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          sqliteEngine.importBinary(reader.result as ArrayBuffer);
+          refreshDatabase();
+        } catch (err: any) {
+          setSqlError(err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  };
+
+  const csharpCodeSnippet = `// ------------------------------------------------------------------
+// C# .NET 8 / 9 — SQLite Data Binding Example
+// Using Microsoft.Data.Sqlite or System.Data.SQLite
+// ------------------------------------------------------------------
+using System;
+using System.Data;
 using Microsoft.Data.Sqlite;
-using MyUniversityApp.Models;
+using System.Windows.Forms;
 
-namespace MyUniversityApp.Data;
-
-public class ${repoName}
+public partial class ${activeTable || 'DataForm'} : Form
 {
-    private readonly string _connectionString = "Data Source=university_lab.db;";
+    private string connectionString = "Data Source=database.db";
 
-    // Получить все записи из таблицы ${activeTable.name}
-    public List<${className}> GetAll()
+    public void Load${activeTable || 'Table'}Data()
     {
-        var list = new List<${className}>();
-        using var connection = new SqliteConnection(_connectionString);
-        connection.Open();
-
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT ${colNamesStr} FROM ${activeTable.name};";
-
-        using var reader = command.ExecuteReader();
-        while (reader.Read())
+        using (var connection = new SqliteConnection(connectionString))
         {
-            list.Add(new ${className}
+            connection.Open();
+            var sql = "SELECT * FROM ${activeTable || 'Users_Table'}";
+            
+            using (var cmd = new SqliteCommand(sql, connection))
+            using (var reader = cmd.ExecuteReader())
             {
-${readerAssigns}
-            });
+                var dataTable = new DataTable();
+                dataTable.Load(reader);
+                
+                // Real DataGridView binding:
+                this.dataGridView1.DataSource = dataTable;
+            }
         }
-        return list;
-    }
-
-    // Добавить новую запись
-    public void Add(${className} entity)
-    {
-        using var connection = new SqliteConnection(_connectionString);
-        connection.Open();
-
-        using var command = connection.CreateCommand();
-        command.CommandText = @"
-            INSERT INTO ${activeTable.name} (${insertColsStr}) 
-            VALUES (${insertValsStr});";
-
-${paramAssigns}
-
-        command.ExecuteNonQuery();
     }
 }`;
-  };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 font-sans text-xs text-zinc-200 select-none overflow-hidden">
-      {/* ── TOP HEADER / TABLE SWITCHER BAR ── */}
-      <div className="bg-zinc-900 border-b border-zinc-800 px-3 py-2 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2 overflow-x-auto py-0.5">
-          <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-bold text-[11px] mr-2">
-            <Database className="w-3.5 h-3.5" />
-            <span>university_lab.db</span>
+    <div className="flex h-full w-full bg-[#121217] text-zinc-200 font-sans overflow-hidden">
+      {/* ── LEFT TABLE NAVIGATION SIDEBAR (240px) ── */}
+      <div className="w-60 border-r border-zinc-800 bg-[#16161D] flex flex-col shrink-0">
+        <div className="p-3 border-b border-zinc-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Database className="w-4 h-4 text-amber-400" />
+            <span className="font-bold text-xs text-white">SQLite WASM</span>
           </div>
+          <button
+            onClick={() => setShowCreateTable(true)}
+            className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded cursor-pointer"
+            title="Создать таблицу"
+          >
+            <Plus className="w-4 h-4 text-emerald-400" />
+          </button>
+        </div>
 
+        {/* Create table inline prompt */}
+        {showCreateTable && (
+          <div className="p-2 bg-zinc-900 border-b border-zinc-800 space-y-2">
+            <input
+              type="text"
+              autoFocus
+              value={newTableName}
+              onChange={(e) => setNewTableName(e.target.value)}
+              placeholder="Имя таблицы (Orders)"
+              className="w-full bg-zinc-950 border border-zinc-700 px-2 py-1 rounded text-xs text-white outline-none"
+            />
+            <div className="flex gap-1 justify-end">
+              <button
+                onClick={() => setShowCreateTable(false)}
+                className="px-2 py-0.5 text-[10px] text-zinc-400 hover:text-white"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleCreateTable}
+                className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold"
+              >
+                Создать
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Table list */}
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 px-2 py-1">
+            Таблицы ({tables.length})
+          </div>
           {tables.map((t) => (
             <button
-              key={t.id}
-              type="button"
-              onClick={() => setActiveTableId(t.id)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors ${
-                activeTableId === t.id
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60'
+              key={t}
+              onClick={() => handleSelectTable(t)}
+              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer text-left ${
+                activeTable === t
+                  ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                  : 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              <Table className="w-3.5 h-3.5" />
-              <span>{t.name}</span>
-              <span className="text-[10px] opacity-75">({t.rows.length})</span>
+              <Table className="w-3.5 h-3.5 shrink-0 opacity-80" />
+              <span className="truncate">{t}</span>
             </button>
           ))}
         </div>
 
-        <button
-          type="button"
-          onClick={handleGenerateFakeData}
-          className="flex items-center gap-1 px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] rounded cursor-pointer transition-colors shrink-0"
-        >
-          <Sparkles className="w-3 h-3" />
-          <span>🎲 Фейк Записи</span>
-        </button>
+        {/* Bottom file controls */}
+        <div className="p-2 border-t border-zinc-800 bg-[#14141A] space-y-1">
+          <div className="flex gap-1">
+            <button
+              onClick={handleExportDb}
+              title="Скачать .sqlite файл"
+              className="flex-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[10px] flex items-center justify-center gap-1 cursor-pointer font-mono"
+            >
+              <Download className="w-3 h-3 text-cyan-400" />
+              <span>.sqlite</span>
+            </button>
+            <button
+              onClick={handleExportSql}
+              title="Скачать .sql дамп"
+              className="flex-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[10px] flex items-center justify-center gap-1 cursor-pointer font-mono"
+            >
+              <Download className="w-3 h-3 text-amber-400" />
+              <span>.sql</span>
+            </button>
+          </div>
+
+          <label className="w-full px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[10px] flex items-center justify-center gap-1 cursor-pointer font-mono">
+            <Upload className="w-3 h-3 text-emerald-400" />
+            <span>Импорт (.db / .sql)</span>
+            <input type="file" accept=".db,.sqlite,.sqlite3,.sql" onChange={handleImportFile} className="hidden" />
+          </label>
+        </div>
       </div>
 
-      {/* ── MAIN NAVIGATION TABS ── */}
-      <div className="bg-zinc-900/60 border-b border-zinc-800/80 px-3 flex items-center gap-1 text-[11px] font-semibold shrink-0">
-        <button
-          type="button"
-          onClick={() => setActiveTab('grid')}
-          className={`px-3 py-2 border-b-2 flex items-center gap-1.5 transition-colors cursor-pointer ${
-            activeTab === 'grid'
-              ? 'border-blue-500 text-blue-400 bg-zinc-800/50'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
-          }`}
-        >
-          <Table className="w-3.5 h-3.5" />
-          <span>📊 Таблица Данных (Grid)</span>
-        </button>
+      {/* ── RIGHT MAIN STUDIO WORKSPACE ── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Workspace Tab Bar */}
+        <div className="h-10 bg-[#16161D] border-b border-zinc-800 px-4 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setActiveTab('grid')}
+              className={`px-3 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                activeTab === 'grid' ? 'bg-zinc-800 text-white border border-zinc-700' : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Table className="w-3.5 h-3.5 text-blue-400" />
+              <span>Данные (DataGridView)</span>
+              <span className="text-[10px] font-mono text-zinc-500">({rows.length})</span>
+            </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('schema')}
-          className={`px-3 py-2 border-b-2 flex items-center gap-1.5 transition-colors cursor-pointer ${
-            activeTab === 'schema'
-              ? 'border-purple-500 text-purple-400 bg-zinc-800/50'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
-          }`}
-        >
-          <Database className="w-3.5 h-3.5" />
-          <span>🛠 Конструктор Схемы</span>
-        </button>
+            <button
+              onClick={() => setActiveTab('schema')}
+              className={`px-3 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                activeTab === 'schema' ? 'bg-zinc-800 text-white border border-zinc-700' : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5 text-purple-400" />
+              <span>Конструктор полей</span>
+              <span className="text-[10px] font-mono text-zinc-500">({columns.length})</span>
+            </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('sql')}
-          className={`px-3 py-2 border-b-2 flex items-center gap-1.5 transition-colors cursor-pointer ${
-            activeTab === 'sql'
-              ? 'border-emerald-500 text-emerald-400 bg-zinc-800/50'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
-          }`}
-        >
-          <TerminalIcon className="w-3.5 h-3.5" />
-          <span>💻 SQL Консоль</span>
-        </button>
+            <button
+              onClick={() => setActiveTab('sql')}
+              className={`px-3 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                activeTab === 'sql' ? 'bg-zinc-800 text-white border border-zinc-700' : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <TerminalIcon className="w-3.5 h-3.5 text-cyan-400" />
+              <span>SQL Консоль</span>
+            </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('csharp')}
-          className={`px-3 py-2 border-b-2 flex items-center gap-1.5 transition-colors cursor-pointer ${
-            activeTab === 'csharp'
-              ? 'border-cyan-500 text-cyan-400 bg-zinc-800/50'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
-          }`}
-        >
-          <Code2 className="w-3.5 h-3.5" />
-          <span>⚡ C# Код Репозитория (POCO)</span>
-        </button>
-      </div>
+            <button
+              onClick={() => setActiveTab('csharp')}
+              className={`px-3 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                activeTab === 'csharp' ? 'bg-zinc-800 text-white border border-zinc-700' : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Code2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>C# Код</span>
+            </button>
+          </div>
 
-      {/* ── TAB CONTENT AREA ── */}
-      <div className="flex-1 overflow-auto p-3">
-        {/* TAB 1: DATA GRID */}
-        {activeTab === 'grid' && activeTable && (
-          <div className="space-y-3">
-            <div className="border border-zinc-800 rounded-xl overflow-hidden bg-zinc-900/40">
+          <button
+            onClick={() => refreshDatabase()}
+            className="p-1.5 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition cursor-pointer flex items-center gap-1 text-xs"
+            title="Обновить"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-blue-400" />
+          </button>
+        </div>
+
+        {/* ── TAB 1: DATA GRID (VISUAL DATA VIEW & ROW EDITOR) ── */}
+        {activeTab === 'grid' && (
+          <div className="flex-1 flex flex-col overflow-hidden p-3 space-y-3">
+            {/* Add row form */}
+            <div className="bg-[#1A1A23] border border-zinc-800 p-2.5 rounded-xl flex items-center gap-2 overflow-x-auto shrink-0">
+              <span className="text-xs font-bold text-zinc-400 shrink-0">+ Новая запись:</span>
+              {columns.map((c) => (
+                <input
+                  key={c.name}
+                  type="text"
+                  placeholder={`${c.name} (${c.type})`}
+                  value={newRowData[c.name] || ''}
+                  onChange={(e) => setNewRowData({ ...newRowData, [c.name]: e.target.value })}
+                  className="bg-zinc-950 border border-zinc-700 px-2 py-1 rounded text-xs text-white min-w-[120px] outline-none"
+                />
+              ))}
+              <button
+                onClick={handleAddRow}
+                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-bold shrink-0 cursor-pointer flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Добавить</span>
+              </button>
+            </div>
+
+            {/* Table Grid */}
+            <div className="flex-1 overflow-auto border border-zinc-800 rounded-xl bg-[#14141B]">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-zinc-900 border-b border-zinc-800 text-zinc-400 font-mono text-[11px]">
-                    {activeTable.columns.map((col) => (
-                      <th key={col.name} className="p-2.5 font-semibold border-r border-zinc-800/60 last:border-r-0">
-                        {col.name}{' '}
-                        <span className="text-[10px] text-zinc-500 uppercase">({col.type})</span>
+                  <tr className="bg-[#1C1C26] border-b border-zinc-800 text-zinc-400 font-mono text-[11px] sticky top-0">
+                    <th className="p-2 w-16 text-center">#</th>
+                    {columns.map((c) => (
+                      <th key={c.name} className="p-2 font-semibold">
+                        <div className="flex items-center gap-1">
+                          <span>{c.name}</span>
+                          <span className="text-[9px] text-zinc-500 font-normal">({c.type})</span>
+                          {c.pk === 1 && <span className="text-[9px] text-amber-400 font-bold">🔑</span>}
+                        </div>
                       </th>
                     ))}
-                    <th className="p-2.5 text-right w-28">Действия</th>
+                    <th className="p-2 w-24 text-right">Действия</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-800/60">
-                  {activeTable.rows.map((row, rIdx) => {
-                    const isEditing = editingRowIndex === rIdx;
-
-                    return (
-                      <tr key={rIdx} className="hover:bg-zinc-800/40 transition-colors">
-                        {activeTable.columns.map((col) => (
-                          <td key={col.name} className="p-2.5 font-mono text-zinc-200 border-r border-zinc-800/40 last:border-r-0">
-                            {isEditing && col.name !== 'Id' ? (
-                              <input
-                                type="text"
-                                defaultValue={row[col.name] ?? ''}
-                                onChange={(e) =>
-                                  setEditingRowData((prev) => ({
-                                    ...prev,
-                                    [col.name]: e.target.value,
-                                  }))
-                                }
-                                className="w-full bg-zinc-950 border border-blue-500 px-2 py-1 rounded text-xs text-white focus:outline-none"
-                              />
-                            ) : (
-                              <span>{String(row[col.name] ?? '')}</span>
-                            )}
-                          </td>
-                        ))}
-
-                        <td className="p-2.5 text-right shrink-0">
-                          {isEditing ? (
-                            <button
-                              type="button"
-                              onClick={() => handleSaveEditRow(rIdx)}
-                              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold cursor-pointer"
-                            >
-                              Сохранить
-                            </button>
-                          ) : (
+                <tbody className="divide-y divide-zinc-800/60 font-mono text-[11px]">
+                  {rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={columns.length + 2} className="p-8 text-center text-zinc-500">
+                        Таблица пуста. Добавьте строки сверху или выполните INSERT в SQL консоли.
+                      </td>
+                    </tr>
+                  ) : (
+                    rows.map((row, idx) => {
+                      const isEditing = editingRowIndex === idx;
+                      return (
+                        <tr key={idx} className="hover:bg-zinc-800/40 transition-colors">
+                          <td className="p-2 text-center text-zinc-500">{idx + 1}</td>
+                          {columns.map((c) => (
+                            <td key={c.name} className="p-2 text-zinc-200">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  value={
+                                    editingRowData[c.name] !== undefined
+                                      ? editingRowData[c.name]
+                                      : String(row[c.name] ?? '')
+                                  }
+                                  onChange={(e) =>
+                                    setEditingRowData({ ...editingRowData, [c.name]: e.target.value })
+                                  }
+                                  className="w-full bg-zinc-950 border border-blue-500 px-1.5 py-0.5 rounded text-white outline-none"
+                                />
+                              ) : (
+                                <span>{row[c.name] === null ? <em className="text-zinc-600">null</em> : String(row[c.name])}</span>
+                              )}
+                            </td>
+                          ))}
+                          <td className="p-2 text-right">
                             <div className="flex items-center justify-end gap-1">
+                              {isEditing ? (
+                                <button
+                                  onClick={() => handleSaveEditRow(row)}
+                                  className="p-1 bg-emerald-600/30 text-emerald-400 hover:bg-emerald-600 hover:text-white rounded cursor-pointer"
+                                  title="Сохранить изменения"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setEditingRowIndex(idx);
+                                    setEditingRowData({});
+                                  }}
+                                  className="p-1 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded cursor-pointer"
+                                  title="Редактировать строку"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5 text-cyan-400" />
+                                </button>
+                              )}
                               <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingRowIndex(rIdx);
-                                  setEditingRowData({});
-                                }}
-                                title="Редактировать запись"
-                                className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-blue-400 rounded cursor-pointer"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteRow(rIdx)}
-                                title="Удалить запись"
-                                className="p-1.5 bg-zinc-800 hover:bg-red-900/60 text-red-400 rounded cursor-pointer"
+                                onClick={() => handleDeleteRow(row)}
+                                className="p-1 hover:bg-red-950/40 text-zinc-400 hover:text-red-400 rounded cursor-pointer"
+                                title="Удалить строку"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-
-                  {/* ADD NEW ROW INPUT LINE */}
-                  <tr className="bg-blue-950/20 border-t-2 border-blue-600/40">
-                    {activeTable.columns.map((col) => (
-                      <td key={col.name} className="p-2 font-mono">
-                        {col.name === 'Id' ? (
-                          <span className="text-zinc-500 text-[10px] italic">AUTO ID</span>
-                        ) : (
-                          <input
-                            type="text"
-                            placeholder={`${col.name}...`}
-                            value={newRowData[col.name] || ''}
-                            onChange={(e) =>
-                              setNewRowData((prev) => ({
-                                ...prev,
-                                [col.name]: e.target.value,
-                              }))
-                            }
-                            className="w-full bg-zinc-950 border border-zinc-700 px-2 py-1 rounded text-xs text-zinc-200 focus:border-blue-500 focus:outline-none placeholder-zinc-600"
-                          />
-                        )}
-                      </td>
-                    ))}
-                    <td className="p-2 text-right">
-                      <button
-                        type="button"
-                        onClick={handleAddRow}
-                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] rounded flex items-center gap-1 justify-center w-full cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>Добавить</span>
-                      </button>
-                    </td>
-                  </tr>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {/* TAB 2: SCHEMA CONSTRUCTOR */}
-        {activeTab === 'schema' && activeTable && (
-          <div className="space-y-4 max-w-2xl">
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-              <h3 className="font-bold text-sm text-purple-400 flex items-center gap-2">
-                <Database className="w-4 h-4" />
-                <span>Структура колонок таблицы "{activeTable.name}"</span>
-              </h3>
+        {/* ── TAB 2: SCHEMA DESIGNER (COLUMNS & TYPES) ── */}
+        {activeTab === 'schema' && (
+          <div className="flex-1 overflow-auto p-4 space-y-4">
+            <div className="bg-[#1A1A23] border border-zinc-800 p-3 rounded-xl flex items-center gap-3">
+              <span className="text-xs font-bold text-white">+ Добавить колонку:</span>
+              <input
+                type="text"
+                placeholder="Имя поля (Email)"
+                value={newColName}
+                onChange={(e) => setNewColName(e.target.value)}
+                className="bg-zinc-950 border border-zinc-700 px-2.5 py-1 rounded text-xs text-white outline-none w-48"
+              />
+              <select
+                value={newColType}
+                onChange={(e) => setNewColType(e.target.value)}
+                className="bg-zinc-950 border border-zinc-700 px-2.5 py-1 rounded text-xs text-white outline-none"
+              >
+                <option value="INTEGER">INTEGER (Число)</option>
+                <option value="TEXT">TEXT (Строка)</option>
+                <option value="REAL">REAL (Дробное)</option>
+                <option value="BLOB">BLOB (Байты)</option>
+              </select>
+              <button
+                onClick={handleAddColumn}
+                className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-bold cursor-pointer"
+              >
+                Добавить колонку
+              </button>
+            </div>
 
-              <div className="space-y-2">
-                {activeTable.columns.map((col, cIdx) => (
-                  <div key={cIdx} className="p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg flex items-center justify-between font-mono">
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-white">{col.name}</span>
-                      <span className="px-2 py-0.5 bg-zinc-800 rounded text-[10px] text-purple-300 font-bold">
-                        {col.type}
-                      </span>
-                      {col.isPrimaryKey && (
-                        <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 rounded text-[9px] font-bold">
-                          PRIMARY KEY
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Add column form */}
-              <div className="pt-3 border-t border-zinc-800 flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Имя колонки (e.g. Email, Age)..."
-                  value={newColName}
-                  onChange={(e) => setNewColName(e.target.value)}
-                  className="flex-1 bg-zinc-950 border border-zinc-700 px-3 py-1.5 rounded text-xs text-white focus:outline-none"
-                />
-                <select
-                  value={newColType}
-                  onChange={(e: any) => setNewColType(e.target.value)}
-                  className="bg-zinc-950 border border-zinc-700 px-3 py-1.5 rounded text-xs text-white"
-                >
-                  <option value="TEXT">TEXT</option>
-                  <option value="INTEGER">INTEGER</option>
-                  <option value="REAL">REAL</option>
-                  <option value="BOOLEAN">BOOLEAN</option>
-                </select>
-                <button
-                  type="button"
-                  onClick={handleAddColumn}
-                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded text-xs cursor-pointer"
-                >
-                  ➕ Добавить колонку
-                </button>
-              </div>
+            <div className="border border-zinc-800 rounded-xl overflow-hidden bg-[#14141B]">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-[#1C1C26] border-b border-zinc-800 text-zinc-400 font-mono text-[11px]">
+                    <th className="p-2.5">Колонка</th>
+                    <th className="p-2.5">Тип SQLite</th>
+                    <th className="p-2.5">Первичный ключ</th>
+                    <th className="p-2.5">NOT NULL</th>
+                    <th className="p-2.5">По умолчанию</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/60 font-mono text-[11px]">
+                  {columns.map((c) => (
+                    <tr key={c.name} className="hover:bg-zinc-800/30">
+                      <td className="p-2.5 font-bold text-white">{c.name}</td>
+                      <td className="p-2.5 text-cyan-300">{c.type}</td>
+                      <td className="p-2.5">{c.pk ? <span className="text-amber-400 font-bold">ДА (PK)</span> : 'Нет'}</td>
+                      <td className="p-2.5">{c.notnull ? 'ДА' : 'Нет'}</td>
+                      <td className="p-2.5 text-zinc-500">{c.dflt_value || 'NULL'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
-        {/* TAB 3: SQL CONSOLE */}
+        {/* ── TAB 3: SQL CONSOLE (WASM QUERY RUNNER) ── */}
         {activeTab === 'sql' && (
-          <div className="space-y-3 h-full flex flex-col">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-emerald-400 font-mono">💻 SQLite WASM SQL Editor</span>
-                <button
-                  type="button"
-                  onClick={handleRunSql}
-                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-xs flex items-center gap-1 cursor-pointer"
-                >
-                  <Play className="w-3.5 h-3.5" />
-                  <span>Выполнить (F5)</span>
-                </button>
+          <div className="flex-1 flex flex-col overflow-hidden p-3 space-y-3">
+            {/* Editor Area */}
+            <div className="flex flex-col bg-[#1A1A23] border border-zinc-800 rounded-xl overflow-hidden shrink-0">
+              <div className="p-2 bg-[#16161D] border-b border-zinc-800 flex items-center justify-between">
+                <span className="text-xs font-bold text-zinc-400 font-mono">SQLite Запрос:</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() =>
+                      setSqlQuery(`SELECT * FROM "${activeTable}" LIMIT 20;`)
+                    }
+                    className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[10px] font-mono cursor-pointer"
+                  >
+                    SELECT 20
+                  </button>
+                  <button
+                    onClick={() =>
+                      setSqlQuery(`SELECT COUNT(*) AS TotalRows FROM "${activeTable}";`)
+                    }
+                    className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[10px] font-mono cursor-pointer"
+                  >
+                    COUNT(*)
+                  </button>
+                  <button
+                    onClick={handleRunQuery}
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <span>Выполнить (F5)</span>
+                  </button>
+                </div>
               </div>
-
               <textarea
                 value={sqlQuery}
                 onChange={(e) => setSqlQuery(e.target.value)}
-                rows={3}
-                className="w-full bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg font-mono text-xs text-emerald-300 focus:outline-none focus:border-emerald-500"
+                className="w-full h-24 p-3 bg-zinc-950 font-mono text-xs text-cyan-200 outline-none resize-none leading-relaxed"
+                spellCheck={false}
               />
             </div>
 
-            {/* SQL Results */}
+            {/* Error banner */}
             {sqlError && (
-              <div className="p-3 bg-red-950/60 border border-red-800 text-red-300 rounded-xl font-mono text-xs">
+              <div className="p-2.5 bg-red-950/60 border border-red-800/80 rounded-xl text-red-300 text-xs font-mono">
                 ❌ {sqlError}
               </div>
             )}
 
-            {sqlResult && (
-              <div className="flex-1 border border-zinc-800 rounded-xl overflow-hidden bg-zinc-900/40 p-2 space-y-2">
-                <div className="text-[11px] text-zinc-400 font-mono flex items-center justify-between px-1">
-                  <span>Выборка ({sqlResult.rows.length} строк):</span>
-                  <span className="text-emerald-400 font-bold">{sqlResult.timeMs} ms</span>
-                </div>
-
-                <div className="overflow-auto border border-zinc-800 rounded-lg max-h-56">
-                  <table className="w-full text-left text-xs font-mono">
-                    <thead>
-                      <tr className="bg-zinc-900 border-b border-zinc-800 text-zinc-400">
-                        {sqlResult.columns.map((c) => (
-                          <th key={c} className="p-2 border-r border-zinc-800">{c}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-800">
-                      {sqlResult.rows.map((r, i) => (
-                        <tr key={i} className="hover:bg-zinc-800/50">
-                          {r.map((val, j) => (
-                            <td key={j} className="p-2 border-r border-zinc-800">{String(val)}</td>
+            {/* Results Table */}
+            <div className="flex-1 overflow-auto border border-zinc-800 rounded-xl bg-[#14141B] flex flex-col">
+              {sqlResult ? (
+                <>
+                  <div className="p-2 bg-[#1C1C26] border-b border-zinc-800 flex items-center justify-between text-[11px] font-mono text-zinc-400">
+                    <span>Строк: {sqlResult.values.length}</span>
+                    <span className="text-emerald-400">⚡️ Затрачено: {sqlResult.timeMs} ms</span>
+                  </div>
+                  <div className="flex-1 overflow-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-[#1C1C26] border-b border-zinc-800 text-zinc-400 font-mono text-[11px] sticky top-0">
+                          {sqlResult.columns.map((c, i) => (
+                            <th key={i} className="p-2 font-semibold">
+                              {c}
+                            </th>
                           ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-800/60 font-mono text-[11px]">
+                        {sqlResult.values.map((row, rIdx) => (
+                          <tr key={rIdx} className="hover:bg-zinc-800/40">
+                            {row.map((val, cIdx) => (
+                              <td key={cIdx} className="p-2 text-zinc-200">
+                                {val === null ? <em className="text-zinc-600">null</em> : String(val)}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-zinc-500 text-xs font-mono">
+                  Нажмите «Выполнить» для запуска SQL запроса
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
 
-        {/* TAB 4: C# REPOSITORY CODE GENERATOR */}
+        {/* ── TAB 4: C# INTEGRATION CODE ── */}
         {activeTab === 'csharp' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 h-full overflow-auto">
-            {/* Model Class */}
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 flex flex-col space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-cyan-400 border-b border-zinc-800 pb-2">
-                <span>📄 Модель POCO (User.cs)</span>
-                <span className="text-[10px] text-zinc-500 font-mono">C# 12 / .NET 9</span>
-              </div>
-              <pre className="flex-1 bg-zinc-950 p-3 rounded-lg font-mono text-xs text-cyan-300 overflow-auto whitespace-pre selection:bg-cyan-900">
-                {generatePocoCs()}
-              </pre>
-            </div>
-
-            {/* Repository Class */}
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 flex flex-col space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-emerald-400 border-b border-zinc-800 pb-2">
-                <span>⚡ Репозиторий (UserRepository.cs)</span>
-                <span className="text-[10px] text-zinc-500 font-mono">Microsoft.Data.Sqlite</span>
-              </div>
-              <pre className="flex-1 bg-zinc-950 p-3 rounded-lg font-mono text-xs text-emerald-300 overflow-auto whitespace-pre selection:bg-emerald-900">
-                {generateRepoCs()}
-              </pre>
-            </div>
+          <div className="flex-1 overflow-auto p-4">
+            <pre className="p-4 bg-[#14141B] border border-zinc-800 rounded-xl font-mono text-xs text-emerald-300 leading-relaxed overflow-x-auto">
+              {csharpCodeSnippet}
+            </pre>
           </div>
         )}
-      </div>
-
-      {/* ── FOOTER STATUS BAR ── */}
-      <div className="bg-zinc-900 border-t border-zinc-800 px-3 py-1.5 flex items-center justify-between text-[11px] font-mono text-zinc-400 shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-emerald-400 font-bold">[SQLite WASM: v3.45]</span>
-          <span className="text-zinc-600">|</span>
-          <span>База: university_lab.db</span>
-          <span className="text-zinc-600">|</span>
-          <span className="text-blue-400 font-semibold">Связь с C# DataAccessLayer: ВКЛ</span>
-        </div>
-        <div className="flex items-center gap-1 text-emerald-400">
-          <ShieldCheck className="w-3.5 h-3.5" />
-          <span>IN-MEMORY ORM OK</span>
-        </div>
       </div>
     </div>
   );

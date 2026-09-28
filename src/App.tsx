@@ -43,6 +43,8 @@ import { DevOSDatabaseStudio } from './components/devos/DevOSDatabaseStudio';
 import { DevOSGitStudio } from './components/devos/DevOSGitStudio';
 import { DevOSUMLStudio } from './components/devos/DevOSUMLStudio';
 import { DevOSTerminal } from './components/devos/DevOSTerminal';
+import { DesignerFormatToolbar } from './components/canvas/DesignerFormatToolbar';
+import { CommandPaletteModal } from './components/modals/CommandPaletteModal';
 
 const DesignerApp: React.FC = () => {
   const {
@@ -63,9 +65,15 @@ const DesignerApp: React.FC = () => {
     setImportModalOpen,
     errorListOpen,
     setErrorListOpen,
+    codeDockOpen,
+    setCodeDockOpen,
+    setActiveLeftTab,
+    selectedNodes,
+    updateMultipleNodesProperties,
   } = useDesigner();
 
   const [shareToast, setShareToast] = useState<string | null>(null);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   // Studio Overlay Panel Mode ('database' | 'git' | 'terminal' | 'uml' | 'settings' | null)
   const [activeOverlay, setActiveOverlay] = useState<'database' | 'git' | 'terminal' | 'uml' | 'settings' | null>(null);
@@ -121,38 +129,117 @@ const DesignerApp: React.FC = () => {
   useEffect(() => {
     registerServiceWorker();
     const handleOpenLiveRun = () => setLiveRunOpen(true);
+    const handleOpenCommandPalette = () => setCommandPaletteOpen(true);
     window.addEventListener('open-live-run', handleOpenLiveRun);
+    window.addEventListener('open-command-palette', handleOpenCommandPalette);
     return () => {
       window.removeEventListener('open-live-run', handleOpenLiveRun);
+      window.removeEventListener('open-command-palette', handleOpenCommandPalette);
     };
   }, [setLiveRunOpen]);
 
-  // Global Keyboard Shortcuts
+  // Global Keyboard Shortcuts (Visual Studio Windows & VS Code Standard)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 
+      // Microsoft Visual Studio Quick Launch (Ctrl+Q) & VS Code Command Palette (Ctrl+Shift+P / F1)
+      if (
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') ||
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'q') ||
+        e.key === 'F1'
+      ) {
+        e.preventDefault();
+        setCommandPaletteOpen(prev => !prev);
+        return;
+      }
+
+      // Visual Studio Windows Forms: View Code (F7) & View Designer (Shift+F7)
+      if (e.key === 'F7') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          setCodeDockOpen(false); // View Designer
+        } else {
+          setCodeDockOpen(true); // View Code
+        }
+        return;
+      }
+
+      // Visual Studio: Start Debugging / Live Run (F5)
       if (e.key === 'F5') {
         e.preventDefault();
         setLiveRunOpen(true);
         return;
       }
 
+      // Templates Gallery (F4)
       if (e.key === 'F4') {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('open-templates-gallery'));
         return;
       }
 
-      if (e.key === 'F6' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b')) {
+      // Visual Studio: Build Solution (Ctrl+Shift+B / F6)
+      if (e.key === 'F6' || ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'b') || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b')) {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('open-build-wizard'));
         return;
       }
 
+      // VS Code & Visual Studio: Toggle Integrated Terminal (Ctrl+`)
+      if ((e.ctrlKey || e.metaKey) && e.key === '`') {
+        e.preventDefault();
+        setActiveOverlay(prev => prev === 'terminal' ? null : 'terminal');
+        return;
+      }
+
+      // Visual Studio: Solution Explorer (Ctrl+Alt+L)
+      if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        setActiveLeftTab('solution');
+        return;
+      }
+
+      // Visual Studio: Toolbox (Ctrl+Alt+X)
+      if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 'x') {
+        e.preventDefault();
+        setActiveLeftTab('toolbox');
+        return;
+      }
+
+      // Visual Studio: Document Outline (Ctrl+Alt+T)
+      if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 't') {
+        e.preventDefault();
+        setActiveLeftTab('tree');
+        return;
+      }
+
+      // Visual Studio: Error List (Ctrl+\, E)
+      if ((e.ctrlKey || e.metaKey) && e.key === '\\') {
+        e.preventDefault();
+        setErrorListOpen(!errorListOpen);
+        return;
+      }
+
+      // Visual Studio: Lock Selected Controls (Ctrl+L)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l' && !e.shiftKey && !e.altKey) {
+        if (!isInput) {
+          e.preventDefault();
+          const nonForm = selectedNodes.filter(n => n.type !== 'Form');
+          if (nonForm.length > 0) {
+            const anyUnlocked = nonForm.some(n => !n.properties.locked);
+            updateMultipleNodesProperties(nonForm.map(n => n.id), { locked: anyUnlocked }, true);
+          }
+          return;
+        }
+      }
+
       if (e.key === 'Escape') {
-        if (liveRunOpen) {
+        if (commandPaletteOpen) {
+          setCommandPaletteOpen(false);
+          return;
+        } else if (liveRunOpen) {
           setLiveRunOpen(false);
         } else if (activeOverlay) {
           setActiveOverlay(null);
@@ -341,6 +428,9 @@ const DesignerApp: React.FC = () => {
 
         {/* Center Design Surface Area */}
         <main className="flex-1 flex flex-col relative overflow-hidden bg-zinc-950 border-r border-zinc-900">
+          {/* Visual Studio Windows Forms Format & Breadcrumbs Toolbar */}
+          <DesignerFormatToolbar onOpenCommandPalette={() => setCommandPaletteOpen(true)} />
+
           <div className="flex-1 relative overflow-hidden">
             <DesignSurface />
           </div>
@@ -437,6 +527,11 @@ const DesignerApp: React.FC = () => {
       <LiveRunModal />
       <ImportModal />
       <MessageBoxModal />
+      <CommandPaletteModal
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onOpenOverlay={setActiveOverlay}
+      />
     </div>
   );
 };

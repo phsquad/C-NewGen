@@ -5,6 +5,7 @@ import { SmartTagActionGlyph } from './SmartTagActionGlyph';
 import { RadialActionHalo } from './RadialActionHalo';
 import { SignalWireEngine } from '../../utils/SignalWireEngine';
 import { useDesigner } from '../../context/DesignerContext';
+import { Lock } from 'lucide-react';
 
 interface CanvasNodeItemProps {
   node: DesignerNode;
@@ -284,7 +285,25 @@ export const CanvasNodeItem = memo<CanvasNodeItemProps>(({
         </div>
       )}
 
-      {/* Selection Gizmo with 8 resize handles & dimension tag (Only in Designer mode) */}
+      {/* Visual Studio Windows Forms Standard: Locked Controls Indicator & Border */}
+      {!isEmulatorMode && node.properties.locked && (
+        <div
+          className={`absolute -top-3.5 -left-1.5 px-1 py-0.2 bg-zinc-900 border border-zinc-750 rounded text-amber-400 text-[9px] font-mono shadow-xs z-50 flex items-center gap-0.5 pointer-events-none select-none ${
+            isSelected ? 'ring-1 ring-amber-400/80' : 'opacity-75'
+          }`}
+          title="Заблокировано (Format -> Lock Controls). Изменение положения и размера отключено."
+        >
+          <Lock className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+          <span className="text-[8px] font-bold text-zinc-300">LOCK</span>
+        </div>
+      )}
+
+      {/* Dashed selection outline for locked controls instead of resize handles */}
+      {!isEmulatorMode && isSelected && node.properties.locked && (
+        <div className="absolute inset-0 border-2 border-dashed border-amber-400/70 pointer-events-none z-40 rounded-2xs" />
+      )}
+
+      {/* Selection Gizmo with 8 resize handles & dimension tag (Only in Designer mode when NOT locked) */}
       {!isEmulatorMode && isSelected && !node.properties.locked && (
         <>
           {/* Top info badge */}

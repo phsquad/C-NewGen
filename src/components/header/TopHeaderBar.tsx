@@ -57,6 +57,10 @@ import {
   AlertCircle,
   Home,
   Zap,
+  Search,
+  Lock,
+  Unlock,
+  AlignLeft,
 } from 'lucide-react';
 import { HistoryJournalPanel } from '../history/HistoryJournalPanel';
 import { ProjectManagerModal } from '../projectManager/ProjectManagerModal';
@@ -118,6 +122,9 @@ export const TopHeaderBar: React.FC = () => {
     toggleXrayMode,
     morphicMode,
     toggleMorphicMode,
+    alignSelectedNodes,
+    updateMultipleNodesProperties,
+    selectedNodes,
   } = useDesigner();
 
   // Dropdown menus states
@@ -555,7 +562,135 @@ export const TopHeaderBar: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Формат Menu (Microsoft Visual Studio Windows Forms Standard) */}
+        <div className="relative">
+          <button onClick={() => toggleDropdown('format')} className="menu-dropdown-btn font-semibold text-zinc-200">
+            Формат ▾
+          </button>
+          {activeMenu === 'format' && (
+            <div className="absolute top-full left-0 mt-1 w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl py-1.5 z-50 text-[11px] font-mono">
+              <div className="px-3 py-1 text-[10px] uppercase font-bold text-zinc-500 border-b border-zinc-800">
+                Выравнивание (Align)
+              </div>
+              <button
+                onClick={() => { alignSelectedNodes('left'); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-300"
+              >
+                <span>По левому краю</span>
+                <span className="text-[10px] text-zinc-500 font-sans">Align Left</span>
+              </button>
+              <button
+                onClick={() => { alignSelectedNodes('center'); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-300"
+              >
+                <span>По центру (горизонталь)</span>
+                <span className="text-[10px] text-zinc-500 font-sans">Align Centers</span>
+              </button>
+              <button
+                onClick={() => { alignSelectedNodes('right'); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-300"
+              >
+                <span>По правому краю</span>
+                <span className="text-[10px] text-zinc-500 font-sans">Align Right</span>
+              </button>
+              <button
+                onClick={() => { alignSelectedNodes('top'); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-300"
+              >
+                <span>По верхнему краю</span>
+                <span className="text-[10px] text-zinc-500 font-sans">Align Tops</span>
+              </button>
+              <button
+                onClick={() => { alignSelectedNodes('middle'); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-300"
+              >
+                <span>По центру (вертикаль)</span>
+                <span className="text-[10px] text-zinc-500 font-sans">Align Middles</span>
+              </button>
+              <button
+                onClick={() => { alignSelectedNodes('bottom'); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-300"
+              >
+                <span>По нижнему краю</span>
+                <span className="text-[10px] text-zinc-500 font-sans">Align Bottoms</span>
+              </button>
+
+              <div className="my-1 border-t border-zinc-800" />
+              <div className="px-3 py-1 text-[10px] uppercase font-bold text-zinc-500 border-b border-zinc-800">
+                Размер и управление
+              </div>
+
+              <button
+                onClick={() => { alignSelectedNodes('sameWidth'); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-300"
+              >
+                <span>Одинаковая ширина</span>
+                <span className="text-[10px] text-zinc-500 font-sans">Same Width</span>
+              </button>
+              <button
+                onClick={() => { alignSelectedNodes('sameHeight'); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-300"
+              >
+                <span>Одинаковая высота</span>
+                <span className="text-[10px] text-zinc-500 font-sans">Same Height</span>
+              </button>
+
+              <div className="my-1 border-t border-zinc-800" />
+
+              <button
+                onClick={() => {
+                  const nonForm = selectedNodes.filter(n => n.type !== 'Form');
+                  if (nonForm.length > 0) {
+                    const anyUnlocked = nonForm.some(n => !n.properties.locked);
+                    updateMultipleNodesProperties(nonForm.map(n => n.id), { locked: anyUnlocked }, true);
+                  }
+                  setActiveMenu(null);
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-amber-300 font-medium"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Блокировка (Lock Controls)</span>
+                </span>
+                <span className="text-[10px] text-zinc-500 font-sans">Ctrl+L</span>
+              </button>
+              <button
+                onClick={() => { setTabOrderMode(!isTabOrderMode); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-blue-300"
+              >
+                <span className="flex items-center gap-1.5">
+                  <span>🔢</span>
+                  <span>Порядок перехода Tab Order</span>
+                </span>
+                <span className="text-[10px] text-zinc-500 font-sans">View</span>
+              </button>
+              <button
+                onClick={() => { handleBeautifyGrid(); setActiveMenu(null); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-cyan-300"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Выровнять по сетке формы</span>
+                </span>
+                <span className="text-[10px] text-zinc-500 font-sans">Grid</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Visual Studio Windows Quick Launch & Command Palette Search */}
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
+        className="hidden md:flex items-center gap-2 px-3 py-1 bg-zinc-950/70 hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800 hover:border-zinc-700 rounded-lg text-xs transition shadow-inner cursor-pointer"
+        title="Быстрый поиск команд, окон и действий (Ctrl+Q / Ctrl+Shift+P)"
+      >
+        <Search className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+        <span className="truncate max-w-[180px] font-sans text-[11px] text-zinc-300">Поиск команд и окон</span>
+        <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-zinc-850 text-zinc-400 border border-zinc-750">Ctrl+Q</span>
+      </button>
 
       {/* Multiplayer Placeholder (Feature in Development) */}
       <button
@@ -563,10 +698,10 @@ export const TopHeaderBar: React.FC = () => {
         onClick={() => {
           alert('🤝 Совместная работа в реальном времени находится на стадии закрытого тестирования и скоро будет доступна в следующем обновлении!');
         }}
-        className="px-2.5 py-1 text-[11px] bg-zinc-950/40 hover:bg-zinc-900/40 text-zinc-500 hover:text-zinc-400 border border-zinc-900 rounded-xl flex items-center gap-1.5 transition cursor-pointer font-medium hover:scale-102"
+        className="hidden lg:flex px-2.5 py-1 text-[11px] bg-zinc-950/40 hover:bg-zinc-900/40 text-zinc-500 hover:text-zinc-400 border border-zinc-900 rounded-xl items-center gap-1.5 transition cursor-pointer font-medium hover:scale-102"
       >
         <span className="w-1.5 h-1.5 rounded-full bg-amber-500/80 animate-pulse" />
-        <span>Совместная работа (В разработке)</span>
+        <span>Совместная работа</span>
       </button>
 
       {/* ЦЕНТР: Переключатель режимов */}

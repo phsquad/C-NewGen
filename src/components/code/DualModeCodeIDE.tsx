@@ -26,6 +26,8 @@ import { SemanticRefactoringModal } from '../modals/SemanticRefactoringModal';
 import { CodeMetricsStudioModal } from '../modals/CodeMetricsStudioModal';
 import { ResxStudioModal } from '../modals/ResxStudioModal';
 import { RegexStudioModal } from '../modals/RegexStudioModal';
+import { OrganizeImportsModal } from '../modals/OrganizeImportsModal';
+import { CSharpImportOrganizer } from '../../utils/CSharpImportOrganizer';
 
 import {
   Maximize2,
@@ -70,6 +72,10 @@ import {
   Globe,
   Zap,
   Eye,
+  FoldVertical,
+  UnfoldVertical,
+  ChevronsDownUp,
+  ChevronsUpDown,
 } from 'lucide-react';
 
 export const DualModeCodeIDE: React.FC = () => {
@@ -146,6 +152,34 @@ export const DualModeCodeIDE: React.FC = () => {
   const [codeLensModalOpen, setCodeLensModalOpen] = useState(false);
   const [activeCodeLensSymbol, setActiveCodeLensSymbol] = useState<CodeLensSymbol | null>(null);
   const [activeCodeLensTab, setActiveCodeLensTab] = useState<'references' | 'tests' | 'author'>('references');
+
+  // Interactive Code Folding State (Methods, Classes, Namespaces, #region)
+  const [foldingDropdownOpen, setFoldingDropdownOpen] = useState(false);
+
+  const triggerFolding = (action: string) => {
+    window.dispatchEvent(new CustomEvent('csharp-editor-fold', { detail: { action } }));
+    setFoldingDropdownOpen(false);
+  };
+
+  // Organize Imports / Usings State
+  const [organizeImportsModalOpen, setOrganizeImportsModalOpen] = useState(false);
+  const [organizeToast, setOrganizeToast] = useState<string | null>(null);
+
+  const handleRunOrganizeImports = (showModal = false) => {
+    if (showModal) {
+      setOrganizeImportsModalOpen(true);
+      return;
+    }
+    const result = CSharpImportOrganizer.organize(currentFileContent);
+    if (result.hasChanges) {
+      handleTextChange(result.organizedCode);
+      setOrganizeToast(`✅ ${result.summary}`);
+      setTimeout(() => setOrganizeToast(null), 3500);
+    } else {
+      setOrganizeToast('ℹ️ Все using-директивы уже актуальны и упорядочены');
+      setTimeout(() => setOrganizeToast(null), 3000);
+    }
+  };
 
   // Peek Definition (F12 / Alt+F12) Inline Overlay State
   const [peekDefinitionOpen, setPeekDefinitionOpen] = useState(false);
@@ -388,6 +422,15 @@ export const DualModeCodeIDE: React.FC = () => {
     window.addEventListener('csharp-codelens-action' as any, handleCodeLensAction);
     return () => window.removeEventListener('csharp-codelens-action' as any, handleCodeLensAction);
   }, []);
+
+  // Organize Imports Listener (from Monaco Editor shortcuts Shift+Alt+O or Ctrl+R, G or Quick Fix)
+  useEffect(() => {
+    const handleOrganize = () => {
+      handleRunOrganizeImports(false);
+    };
+    window.addEventListener('csharp-organize-imports' as any, handleOrganize);
+    return () => window.removeEventListener('csharp-organize-imports' as any, handleOrganize);
+  }, [currentFileContent]);
 
   // Text changes handler with dirty state and bidirectional synchronization
   const handleTextChange = (newText: string) => {
@@ -661,6 +704,170 @@ export const DualModeCodeIDE: React.FC = () => {
                     <span>CodeLens: {codeLensEnabled ? 'ВКЛ' : 'ВЫКЛ'}</span>
                   </button>
                   <span className="text-zinc-600">|</span>
+
+                  {/* Interactive Code Folding Controls */}
+                  <div className="relative flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setFoldingDropdownOpen(!foldingDropdownOpen)}
+                      className="px-1.5 py-0.5 rounded text-[9.5px] font-mono flex items-center gap-1 bg-zinc-800 hover:bg-zinc-750 text-cyan-300 border border-zinc-700/80 transition cursor-pointer"
+                      title="Интерактивное сворачивание кода: методы, классы, пространства имён, #region"
+                    >
+                      <ChevronsDownUp className="w-3 h-3 text-cyan-400" />
+                      <span>Сворачивание ▾</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => triggerFolding('foldMethods')}
+                      className="hidden sm:flex px-1.5 py-0.5 rounded text-[9.5px] font-mono items-center gap-1 bg-zinc-850 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-750 transition cursor-pointer"
+                      title="Свернуть все методы (методы, события, конструкторы)"
+                    >
+                      <FoldVertical className="w-3 h-3 text-amber-400" />
+                      <span>Методы</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => triggerFolding('unfoldAll')}
+                      className="hidden sm:flex px-1.5 py-0.5 rounded text-[9.5px] font-mono items-center gap-1 bg-zinc-850 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-750 transition cursor-pointer"
+                      title="Развернуть все блоки (Unfold All)"
+                    >
+                      <ChevronsUpDown className="w-3 h-3 text-emerald-400" />
+                      <span>Развернуть</span>
+                    </button>
+
+                    {foldingDropdownOpen && (
+                      <div className="absolute top-full left-0 mt-1 w-60 bg-zinc-950 border border-zinc-800 rounded-lg shadow-2xl py-1.5 z-50 text-[11px] font-sans">
+                        <div className="px-2.5 py-1 text-[10px] uppercase font-bold text-zinc-500 border-b border-zinc-850 flex items-center justify-between">
+                          <span>Сворачивание кода (Folding)</span>
+                          <span className="text-[9px] font-mono text-zinc-600">Monaco Gutter ⌄</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => triggerFolding('foldMethods')}
+                          className="w-full text-left px-2.5 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-200 cursor-pointer"
+                        >
+                          <span className="flex items-center gap-2">
+                            <FoldVertical className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Свернуть методы и события</span>
+                          </span>
+                          <span className="text-[9.5px] text-zinc-400 font-mono">Methods</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => triggerFolding('foldClasses')}
+                          className="w-full text-left px-2.5 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-200 cursor-pointer"
+                        >
+                          <span className="flex items-center gap-2">
+                            <FoldVertical className="w-3.5 h-3.5 text-purple-400" />
+                            <span>Свернуть классы и структуры</span>
+                          </span>
+                          <span className="text-[9.5px] text-zinc-400 font-mono">Classes</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => triggerFolding('foldNamespaces')}
+                          className="w-full text-left px-2.5 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-200 cursor-pointer"
+                        >
+                          <span className="flex items-center gap-2">
+                            <FoldVertical className="w-3.5 h-3.5 text-blue-400" />
+                            <span>Свернуть пространства имён</span>
+                          </span>
+                          <span className="text-[9.5px] text-zinc-400 font-mono">Namespaces</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => triggerFolding('foldRegions')}
+                          className="w-full text-left px-2.5 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-200 cursor-pointer"
+                        >
+                          <span className="flex items-center gap-2">
+                            <FoldVertical className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Свернуть #region Designer</span>
+                          </span>
+                          <span className="text-[9.5px] text-zinc-400 font-mono">#region</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => triggerFolding('foldImports')}
+                          className="w-full text-left px-2.5 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-200 cursor-pointer"
+                        >
+                          <span className="flex items-center gap-2">
+                            <FoldVertical className="w-3.5 h-3.5 text-zinc-400" />
+                            <span>Свернуть using-импорты</span>
+                          </span>
+                          <span className="text-[9.5px] text-zinc-400 font-mono">Imports</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => triggerFolding('foldComments')}
+                          className="w-full text-left px-2.5 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-200 cursor-pointer"
+                        >
+                          <span className="flex items-center gap-2">
+                            <FoldVertical className="w-3.5 h-3.5 text-zinc-500" />
+                            <span>Свернуть комментарии</span>
+                          </span>
+                          <span className="text-[9.5px] text-zinc-400 font-mono">Comments</span>
+                        </button>
+
+                        <div className="my-1 border-t border-zinc-850" />
+
+                        <button
+                          type="button"
+                          onClick={() => triggerFolding('foldAll')}
+                          className="w-full text-left px-2.5 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-200 cursor-pointer"
+                        >
+                          <span className="flex items-center gap-2 font-medium">
+                            <ChevronsDownUp className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>Свернуть всё</span>
+                          </span>
+                          <span className="text-[9.5px] text-zinc-400 font-mono">Ctrl+K, Ctrl+0</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => triggerFolding('unfoldAll')}
+                          className="w-full text-left px-2.5 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-200 cursor-pointer"
+                        >
+                          <span className="flex items-center gap-2 font-medium">
+                            <ChevronsUpDown className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Развернуть всё</span>
+                          </span>
+                          <span className="text-[9.5px] text-zinc-400 font-mono">Ctrl+K, Ctrl+J</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <span className="text-zinc-600">|</span>
+
+                  {/* Organize Imports Button & Preview */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleRunOrganizeImports(false)}
+                      className="px-1.5 py-0.5 rounded text-[9.5px] font-mono flex items-center gap-1 bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 border border-blue-800/60 transition cursor-pointer"
+                      title="Организовать директивы using: добавить недостающие, удалить лишние, упорядочить (Shift+Alt+O / Ctrl+R, G)"
+                    >
+                      <Sparkles className="w-3 h-3 text-blue-400" />
+                      <span>Organize Usings</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRunOrganizeImports(true)}
+                      className="px-1 py-0.5 rounded text-[9.5px] font-mono bg-zinc-850 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-750 transition cursor-pointer"
+                      title="Предварительный просмотр недостающих и неиспользуемых ссылок..."
+                    >
+                      <span>⚙️</span>
+                    </button>
+                  </div>
+
+                  <span className="text-zinc-600">|</span>
                   <span
                     onClick={() => {
                       setPeekSymbolName(selectedMethod);
@@ -745,6 +952,12 @@ export const DualModeCodeIDE: React.FC = () => {
 
               {/* Main Editor Body: Monaco Editor Core */}
               <div className="flex-1 flex overflow-hidden relative">
+                {organizeToast && (
+                  <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-50 px-3 py-1.5 bg-zinc-900/95 border border-blue-500/80 rounded-lg shadow-2xl backdrop-blur-md text-xs font-mono text-zinc-100 flex items-center gap-2 animate-in fade-in duration-150">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <span>{organizeToast}</span>
+                  </div>
+                )}
                 <MonacoCodeEditor
                   value={currentFileContent}
                   language={activeLang}
@@ -806,6 +1019,16 @@ export const DualModeCodeIDE: React.FC = () => {
           activeTab={activeCodeLensTab}
           onSelectTab={setActiveCodeLensTab}
           onJumpToLine={(line) => setTargetLine(line)}
+        />
+        <OrganizeImportsModal
+          isOpen={organizeImportsModalOpen}
+          onClose={() => setOrganizeImportsModalOpen(false)}
+          code={currentFileContent}
+          onApplyOrganizedCode={(newCode, summary) => {
+            handleTextChange(newCode);
+            setOrganizeToast(`✅ ${summary}`);
+            setTimeout(() => setOrganizeToast(null), 3500);
+          }}
         />
       </>
     );
@@ -1162,6 +1385,170 @@ export const DualModeCodeIDE: React.FC = () => {
                   <span>CodeLens: {codeLensEnabled ? 'ВКЛ' : 'ВЫКЛ'}</span>
                 </button>
                 <span className="text-zinc-600">|</span>
+
+                {/* Interactive Code Folding Controls */}
+                <div className="relative flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setFoldingDropdownOpen(!foldingDropdownOpen)}
+                    className="px-1.5 py-0.5 rounded text-[9.5px] font-mono flex items-center gap-1 bg-zinc-800 hover:bg-zinc-750 text-cyan-300 border border-zinc-700/80 transition cursor-pointer"
+                    title="Интерактивное сворачивание кода: методы, классы, пространства имён, #region"
+                  >
+                    <ChevronsDownUp className="w-3 h-3 text-cyan-400" />
+                    <span>Сворачивание ▾</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => triggerFolding('foldMethods')}
+                    className="hidden sm:flex px-1.5 py-0.5 rounded text-[9.5px] font-mono items-center gap-1 bg-zinc-850 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-750 transition cursor-pointer"
+                    title="Свернуть все методы (методы, события, конструкторы)"
+                  >
+                    <FoldVertical className="w-3 h-3 text-amber-400" />
+                    <span>Методы</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => triggerFolding('unfoldAll')}
+                    className="hidden sm:flex px-1.5 py-0.5 rounded text-[9.5px] font-mono items-center gap-1 bg-zinc-850 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-750 transition cursor-pointer"
+                    title="Развернуть все блоки (Unfold All)"
+                  >
+                    <ChevronsUpDown className="w-3 h-3 text-emerald-400" />
+                    <span>Развернуть</span>
+                  </button>
+
+                  {foldingDropdownOpen && (
+                    <div className="absolute top-full right-0 mt-1 w-60 bg-zinc-950 border border-zinc-800 rounded-lg shadow-2xl py-1.5 z-50 text-[11px] font-sans">
+                      <div className="px-2.5 py-1 text-[10px] uppercase font-bold text-zinc-500 border-b border-zinc-850 flex items-center justify-between">
+                        <span>Сворачивание кода (Folding)</span>
+                        <span className="text-[9px] font-mono text-zinc-600">Gutter ⌄</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => triggerFolding('foldMethods')}
+                        className="w-full text-left px-2.5 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-200 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <FoldVertical className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Свернуть методы и события</span>
+                        </span>
+                        <span className="text-[9.5px] text-zinc-400 font-mono">Methods</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => triggerFolding('foldClasses')}
+                        className="w-full text-left px-2.5 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-200 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <FoldVertical className="w-3.5 h-3.5 text-purple-400" />
+                          <span>Свернуть классы и структуры</span>
+                        </span>
+                        <span className="text-[9.5px] text-zinc-400 font-mono">Classes</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => triggerFolding('foldNamespaces')}
+                        className="w-full text-left px-2.5 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-200 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <FoldVertical className="w-3.5 h-3.5 text-blue-400" />
+                          <span>Свернуть пространства имён</span>
+                        </span>
+                        <span className="text-[9.5px] text-zinc-400 font-mono">Namespaces</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => triggerFolding('foldRegions')}
+                        className="w-full text-left px-2.5 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-200 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <FoldVertical className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Свернуть #region Designer</span>
+                        </span>
+                        <span className="text-[9.5px] text-zinc-400 font-mono">#region</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => triggerFolding('foldImports')}
+                        className="w-full text-left px-2.5 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-200 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <FoldVertical className="w-3.5 h-3.5 text-zinc-400" />
+                          <span>Свернуть using-импорты</span>
+                        </span>
+                        <span className="text-[9.5px] text-zinc-400 font-mono">Imports</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => triggerFolding('foldComments')}
+                        className="w-full text-left px-2.5 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-200 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <FoldVertical className="w-3.5 h-3.5 text-zinc-500" />
+                          <span>Свернуть комментарии</span>
+                        </span>
+                        <span className="text-[9.5px] text-zinc-400 font-mono">Comments</span>
+                      </button>
+
+                      <div className="my-1 border-t border-zinc-850" />
+
+                      <button
+                        type="button"
+                        onClick={() => triggerFolding('foldAll')}
+                        className="w-full text-left px-2.5 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-200 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2 font-medium">
+                          <ChevronsDownUp className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>Свернуть всё</span>
+                        </span>
+                        <span className="text-[9.5px] text-zinc-400 font-mono">Ctrl+K, Ctrl+0</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => triggerFolding('unfoldAll')}
+                        className="w-full text-left px-2.5 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between text-zinc-200 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2 font-medium">
+                          <ChevronsUpDown className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Развернуть всё</span>
+                        </span>
+                        <span className="text-[9.5px] text-zinc-400 font-mono">Ctrl+K, Ctrl+J</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <span className="text-zinc-600">|</span>
+
+                {/* Organize Imports Button & Preview */}
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleRunOrganizeImports(false)}
+                    className="px-1.5 py-0.5 rounded text-[9.5px] font-mono flex items-center gap-1 bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 border border-blue-800/60 transition cursor-pointer"
+                    title="Организовать директивы using: добавить недостающие, удалить лишние, упорядочить (Shift+Alt+O / Ctrl+R, G)"
+                  >
+                    <Sparkles className="w-3 h-3 text-blue-400" />
+                    <span>Organize Usings</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRunOrganizeImports(true)}
+                    className="px-1 py-0.5 rounded text-[9.5px] font-mono bg-zinc-850 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-750 transition cursor-pointer"
+                    title="Предварительный просмотр недостающих и неиспользуемых ссылок..."
+                  >
+                    <span>⚙️</span>
+                  </button>
+                </div>
+
+                <span className="text-zinc-600">|</span>
                 <span
                   onClick={() => {
                     setPeekSymbolName(selectedMethod);
@@ -1184,6 +1571,12 @@ export const DualModeCodeIDE: React.FC = () => {
 
             {/* Code Editor Body: Monaco Editor Core */}
             <div className="flex-1 flex overflow-hidden relative">
+              {organizeToast && (
+                <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-50 px-3 py-1.5 bg-zinc-900/95 border border-blue-500/80 rounded-lg shadow-2xl backdrop-blur-md text-xs font-mono text-zinc-100 flex items-center gap-2 animate-in fade-in duration-150">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <span>{organizeToast}</span>
+                </div>
+              )}
               <MonacoCodeEditor
                 value={currentFileContent}
                 language={activeLang}
@@ -1305,6 +1698,16 @@ export const DualModeCodeIDE: React.FC = () => {
           activeTab={activeCodeLensTab}
           onSelectTab={setActiveCodeLensTab}
           onJumpToLine={(line) => setTargetLine(line)}
+        />
+        <OrganizeImportsModal
+          isOpen={organizeImportsModalOpen}
+          onClose={() => setOrganizeImportsModalOpen(false)}
+          code={currentFileContent}
+          onApplyOrganizedCode={(newCode, summary) => {
+            handleTextChange(newCode);
+            setOrganizeToast(`✅ ${summary}`);
+            setTimeout(() => setOrganizeToast(null), 3500);
+          }}
         />
       </div>
     </>

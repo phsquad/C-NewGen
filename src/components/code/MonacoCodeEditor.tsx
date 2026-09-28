@@ -1,6 +1,8 @@
 import React, { useRef, useEffect } from 'react';
 import Editor, { Monaco } from '@monaco-editor/react';
 import { CSharpCodeLensEngine } from '../../utils/CSharpCodeLensEngine';
+import { CSharpFoldingEngine } from '../../utils/CSharpFoldingEngine';
+import { CSharpImportOrganizer } from '../../utils/CSharpImportOrganizer';
 
 interface MonacoCodeEditorProps {
   value: string;
@@ -26,6 +28,8 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const codeLensDisposableRef = useRef<{ dispose: () => void } | null>(null);
+  const foldingDisposableRef = useRef<{ dispose: () => void } | null>(null);
+  const codeActionDisposableRef = useRef<{ dispose: () => void } | null>(null);
 
   useEffect(() => {
     return () => {
@@ -33,7 +37,78 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         codeLensDisposableRef.current.dispose();
         codeLensDisposableRef.current = null;
       }
+      if (foldingDisposableRef.current) {
+        foldingDisposableRef.current.dispose();
+        foldingDisposableRef.current = null;
+      }
+      if (codeActionDisposableRef.current) {
+        codeActionDisposableRef.current.dispose();
+        codeActionDisposableRef.current = null;
+      }
     };
+  }, []);
+
+  // External Folding Action Listener
+  useEffect(() => {
+    const handleFoldEvent = (e: any) => {
+      if (!editorRef.current) return;
+      const editor = editorRef.current;
+      const action = e.detail?.action;
+      const code = editor.getValue();
+      const blocks = CSharpFoldingEngine.computeFoldingRanges(code);
+
+      switch (action) {
+        case 'foldAll':
+          editor.getAction('editor.foldAll')?.run();
+          break;
+        case 'unfoldAll':
+          editor.getAction('editor.unfoldAll')?.run();
+          break;
+        case 'foldMethods': {
+          const methodLines = blocks.filter(b => b.category === 'method').map(b => b.start);
+          CSharpFoldingEngine.foldTargetLines(editor, methodLines, true);
+          break;
+        }
+        case 'unfoldMethods': {
+          const methodLines = blocks.filter(b => b.category === 'method').map(b => b.start);
+          CSharpFoldingEngine.foldTargetLines(editor, methodLines, false);
+          break;
+        }
+        case 'foldClasses': {
+          const classLines = blocks.filter(b => b.category === 'class').map(b => b.start);
+          CSharpFoldingEngine.foldTargetLines(editor, classLines, true);
+          break;
+        }
+        case 'unfoldClasses': {
+          const classLines = blocks.filter(b => b.category === 'class').map(b => b.start);
+          CSharpFoldingEngine.foldTargetLines(editor, classLines, false);
+          break;
+        }
+        case 'foldNamespaces': {
+          const nsLines = blocks.filter(b => b.category === 'namespace').map(b => b.start);
+          CSharpFoldingEngine.foldTargetLines(editor, nsLines, true);
+          break;
+        }
+        case 'foldRegions': {
+          editor.getAction('editor.foldAllMarkerRegions')?.run();
+          const regionLines = blocks.filter(b => b.category === 'region').map(b => b.start);
+          CSharpFoldingEngine.foldTargetLines(editor, regionLines, true);
+          break;
+        }
+        case 'foldImports': {
+          const importLines = blocks.filter(b => b.category === 'imports').map(b => b.start);
+          CSharpFoldingEngine.foldTargetLines(editor, importLines, true);
+          break;
+        }
+        case 'foldComments': {
+          editor.getAction('editor.foldAllBlockComments')?.run();
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('csharp-editor-fold' as any, handleFoldEvent);
+    return () => window.removeEventListener('csharp-editor-fold' as any, handleFoldEvent);
   }, []);
 
   // Jump to target line if specified
@@ -140,6 +215,48 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       codeLensDisposableRef.current = CSharpCodeLensEngine.registerMonacoCodeLens(monaco);
     }
 
+    // Register C# Folding Provider (Namespaces, Classes, Methods, #region, Imports)
+    if (!foldingDisposableRef.current) {
+      foldingDisposableRef.current = CSharpFoldingEngine.registerMonacoFoldingProvider(monaco);
+    }
+
+    // Register C# Import Organizer CodeAction Provider (💡 Quick Fix for missing references)
+    if (!codeActionDisposableRef.current) {
+      codeActionDisposableRef.current = CSharpImportOrganizer.registerMonacoCodeActionProvider(monaco);
+    }
+
+    // Register custom command for organize imports
+    if (!(monaco.editor as any)._csharpOrganizeCommandRegistered) {
+      (monaco.editor as any)._csharpOrganizeCommandRegistered = true;
+      monaco.editor.registerCommand('csharp.organizeImports', () => {
+        window.dispatchEvent(new CustomEvent('csharp-organize-imports'));
+      });
+    }
+
+    // Bind Visual Studio & VS Code standard folding chords (Ctrl+K, Ctrl+0 / Ctrl+K, Ctrl+J)
+    try {
+      editor.addCommand(
+        monaco.KeyMod.chord(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, monaco.KeyMod.CtrlCmd | monaco.KeyCode.Digit0),
+        () => editor.getAction('editor.foldAll')?.run()
+      );
+      editor.addCommand(
+        monaco.KeyMod.chord(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyJ),
+        () => editor.getAction('editor.unfoldAll')?.run()
+      );
+
+      // Organize Imports Shortcuts: Shift+Alt+O (VS Code) and Ctrl+R, Ctrl+G (Visual Studio)
+      editor.addCommand(
+        monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyO,
+        () => window.dispatchEvent(new CustomEvent('csharp-organize-imports'))
+      );
+      editor.addCommand(
+        monaco.KeyMod.chord(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyR, monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyG),
+        () => window.dispatchEvent(new CustomEvent('csharp-organize-imports'))
+      );
+    } catch {
+      // Ignore if commands already bound
+    }
+
     // Jump to line if initially provided
     if (targetLine && targetLine > 0) {
       editor.revealLineInCenter(targetLine);
@@ -183,6 +300,12 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
           formatOnPaste: true,
           formatOnType: true,
           folding: true,
+          foldingStrategy: 'auto',
+          showFoldingControls: 'always',
+          foldingHighlight: true,
+          unfoldOnClickAfterEndOfLine: true,
+          foldingImportsByDefault: false,
+          matchBrackets: 'always',
           lineNumbersMinChars: 3,
           codeLens: enableCodeLens,
           codeLensFontFamily: "'JetBrains Mono', Consolas, 'Courier New', monospace",

@@ -1,3 +1,5 @@
+import { CSharpImportOrganizer } from './CSharpImportOrganizer';
+
 export interface QuickFixItem {
   id: string;
   codeRule: string; // e.g. "CA1829", "IDE0058", "IDE0071"
@@ -155,18 +157,41 @@ export class RoslynQuickFixes {
       }
     });
 
-    // 7. General Roslyn Fix: Add System.Text.Json or System.Linq if missing
-    if (!csharpCode.includes('using System.Linq;') && csharpCode.includes('Where(')) {
+    // 7. General Roslyn Fix: Missing 'using' references detection
+    const missingRefs = CSharpImportOrganizer.detectMissingReferences(csharpCode);
+    missingRefs.forEach((missing) => {
       fixes.unshift({
-        id: 'fix-add-linq-using',
+        id: `fix-add-using-${missing.namespace}`,
         codeRule: 'CS0246',
-        title: 'Добавить директиву using System.Linq;',
-        description: 'Подключает пространство имен для методов расширения LINQ.',
+        title: `Добавить директиву 'using ${missing.namespace};' (для ${missing.symbol})`,
+        description: missing.description,
+        line: missing.line,
+        category: 'Refactoring',
+        beforeSnippet: `// Не найден тип '${missing.symbol}'`,
+        afterSnippet: `using ${missing.namespace};`,
+        apply: (code: string) => {
+          const res = CSharpImportOrganizer.organize(code, { removeUnused: false, addMissing: true });
+          return res.organizedCode;
+        },
+      });
+    });
+
+    // 8. Organize All Usings quick fix if there are missing or unused references
+    const unusedUsings = CSharpImportOrganizer.detectUnusedUsings(csharpCode);
+    if (missingRefs.length > 0 || unusedUsings.length > 0) {
+      fixes.unshift({
+        id: 'fix-organize-all-usings',
+        codeRule: 'IDE0005',
+        title: 'Организовать все директивы using (Shift+Alt+O)',
+        description: `Добавить недостающие (${missingRefs.length}), удалить неиспользуемые (${unusedUsings.length}) и упорядочить.`,
         line: 1,
         category: 'Refactoring',
-        beforeSnippet: 'using System;',
-        afterSnippet: 'using System;\nusing System.Linq;',
-        apply: (code: string) => `using System.Linq;\n${code}`,
+        beforeSnippet: '// using directives unorganized',
+        afterSnippet: '// using directives organized',
+        apply: (code: string) => {
+          const res = CSharpImportOrganizer.organize(code);
+          return res.organizedCode;
+        },
       });
     }
 

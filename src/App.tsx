@@ -166,6 +166,14 @@ const DesignerApp: React.FC = () => {
         return;
       }
 
+      // Organize Imports: Shift+Alt+O
+      if (e.shiftKey && e.altKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        setCodeDockOpen(true);
+        setTimeout(() => window.dispatchEvent(new CustomEvent('csharp-organize-imports')), 50);
+        return;
+      }
+
       // Visual Studio: Start Debugging / Live Run (F5)
       if (e.key === 'F5') {
         e.preventDefault();

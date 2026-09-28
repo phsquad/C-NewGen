@@ -40,6 +40,9 @@ import {
   Activity,
   Cpu,
   Eye,
+  FoldVertical,
+  ChevronsDownUp,
+  ChevronsUpDown,
 } from 'lucide-react';
 
 interface CommandItem {
@@ -467,6 +470,90 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         icon: <Eye className="w-4 h-4 text-blue-400" />,
         action: () => setCodeDockOpen(true),
         keywords: 'codelens references tests blame author инспектор ссылки тесты автор f7',
+      },
+      {
+        id: 'code-fold-methods',
+        title: 'Свернуть методы C# (Fold Methods & Constructors)',
+        category: 'View',
+        shortcut: 'Ctrl+K, Ctrl+3',
+        icon: <FoldVertical className="w-4 h-4 text-amber-400" />,
+        action: () => {
+          setCodeDockOpen(true);
+          setTimeout(() => window.dispatchEvent(new CustomEvent('csharp-editor-fold', { detail: { action: 'foldMethods' } })), 100);
+        },
+        keywords: 'fold collapse methods функции методы свернуть сворачивание',
+      },
+      {
+        id: 'code-fold-classes',
+        title: 'Свернуть классы и структуры C# (Fold Classes)',
+        category: 'View',
+        shortcut: 'Ctrl+K, Ctrl+2',
+        icon: <FoldVertical className="w-4 h-4 text-purple-400" />,
+        action: () => {
+          setCodeDockOpen(true);
+          setTimeout(() => window.dispatchEvent(new CustomEvent('csharp-editor-fold', { detail: { action: 'foldClasses' } })), 100);
+        },
+        keywords: 'fold collapse classes классы структуры свернуть',
+      },
+      {
+        id: 'code-fold-namespaces',
+        title: 'Свернуть пространства имён C# (Fold Namespaces)',
+        category: 'View',
+        shortcut: 'Ctrl+K, Ctrl+1',
+        icon: <FoldVertical className="w-4 h-4 text-blue-400" />,
+        action: () => {
+          setCodeDockOpen(true);
+          setTimeout(() => window.dispatchEvent(new CustomEvent('csharp-editor-fold', { detail: { action: 'foldNamespaces' } })), 100);
+        },
+        keywords: 'fold collapse namespaces пространства имен свернуть',
+      },
+      {
+        id: 'code-fold-regions',
+        title: 'Свернуть блоки #region Designer (Fold Regions)',
+        category: 'View',
+        shortcut: 'Ctrl+K, Ctrl+8',
+        icon: <FoldVertical className="w-4 h-4 text-emerald-400" />,
+        action: () => {
+          setCodeDockOpen(true);
+          setTimeout(() => window.dispatchEvent(new CustomEvent('csharp-editor-fold', { detail: { action: 'foldRegions' } })), 100);
+        },
+        keywords: 'fold collapse region регионы дизайнер свернуть',
+      },
+      {
+        id: 'code-fold-all',
+        title: 'Свернуть всё в редакторе кода (Fold All)',
+        category: 'View',
+        shortcut: 'Ctrl+K, Ctrl+0',
+        icon: <ChevronsDownUp className="w-4 h-4 text-cyan-400" />,
+        action: () => {
+          setCodeDockOpen(true);
+          setTimeout(() => window.dispatchEvent(new CustomEvent('csharp-editor-fold', { detail: { action: 'foldAll' } })), 100);
+        },
+        keywords: 'fold all collapse свернуть все код',
+      },
+      {
+        id: 'code-unfold-all',
+        title: 'Развернуть всё в редакторе кода (Unfold All)',
+        category: 'View',
+        shortcut: 'Ctrl+K, Ctrl+J',
+        icon: <ChevronsUpDown className="w-4 h-4 text-emerald-400" />,
+        action: () => {
+          setCodeDockOpen(true);
+          setTimeout(() => window.dispatchEvent(new CustomEvent('csharp-editor-fold', { detail: { action: 'unfoldAll' } })), 100);
+        },
+        keywords: 'unfold all expand развернуть все код',
+      },
+      {
+        id: 'code-organize-imports',
+        title: 'Организовать директивы using (Organize Imports)',
+        category: 'Tools',
+        shortcut: 'Shift+Alt+O',
+        icon: <Sparkles className="w-4 h-4 text-blue-400" />,
+        action: () => {
+          setCodeDockOpen(true);
+          setTimeout(() => window.dispatchEvent(new CustomEvent('csharp-organize-imports')), 100);
+        },
+        keywords: 'organize imports usings импорты организовать ссылки удалить неиспользуемые добавить недостающие',
       },
     ];
   }, [
